@@ -356,6 +356,25 @@ input, select, textarea { font-family:var(--font); }
   transition:all 0.15s;
 }
 .chat-send:hover { background:var(--primary-dark); }
+.btn-mic {
+  width:36px; height:36px; border-radius:50%;
+  background:var(--surface); border:1.5px solid var(--border);
+  cursor:pointer; font-size:15px; display:flex;
+  align-items:center; justify-content:center;
+  transition:all 0.2s; flex-shrink:0;
+}
+.btn-mic:hover { border-color:var(--primary); background:rgba(66,133,244,0.06); }
+.btn-mic.active {
+  background:#DC2626; border-color:#DC2626; color:white;
+  animation:micPulse 1.5s infinite;
+}
+.hero-mic { width:32px; height:32px; font-size:14px; background:transparent; border:none; flex-shrink:0; }
+.hero-mic:hover { background:rgba(66,133,244,0.08); border-radius:50%; }
+.hero-mic.active { background:#DC2626; border-radius:50%; color:white; animation:micPulse 1.5s infinite; }
+.chat-mic { background:transparent; border:none; width:32px; height:32px; font-size:14px; }
+.chat-mic:hover { background:rgba(66,133,244,0.08); }
+.chat-mic.active { background:#DC2626; border-radius:50%; color:white; animation:micPulse 1.5s infinite; }
+@keyframes micPulse { 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,0.3)} 50%{box-shadow:0 0 0 8px rgba(220,38,38,0)} }
 .typing-dots { display:flex; gap:4px; padding:4px 0; }
 .typing-dot {
   width:7px; height:7px; border-radius:50%;
@@ -1018,6 +1037,9 @@ CRITICAL RULES:
 - Only reference vehicles from the inventory below. Never invent cars.
 - When recommending, say WHY in one short line per car.
 - If asked a specific question, answer it directly — don't pad with extra info.
+- ALWAYS end your response with exactly 3 suggested follow-up questions on a new line in this format:
+  [SUGGESTIONS: suggestion one | suggestion two | suggestion three]
+  Make them short (3-6 words), natural, and relevant to what the user might want to ask next.
 
 CURRENT INVENTORY (${V.length} vehicles, all London area):
 `,
@@ -1029,6 +1051,9 @@ CRITICAL RULES:
 - Use the actual data below to back up your answer with specific numbers.
 - Be honest — flag concerns, praise good value. Like a trusted mechanic mate.
 - Only mention alternatives if the user specifically asks to compare.
+- ALWAYS end your response with exactly 3 suggested follow-up questions on a new line in this format:
+  [SUGGESTIONS: suggestion one | suggestion two | suggestion three]
+  Make them short (3-6 words), natural, and relevant to the vehicle discussion.
 
 THE VEHICLE:
 `,
@@ -1040,6 +1065,9 @@ CRITICAL RULES:
 - Test drive slots: Mon 10am, Tue 2pm, Wed 11am, Thu 3:30pm, Sat 10am.
 - For finance, quote PCP/HP figures from the data. Keep it brief.
 - The car IS in stock. Confirm things confidently.
+- ALWAYS end your response with exactly 3 suggested follow-up actions on a new line in this format:
+  [SUGGESTIONS: suggestion one | suggestion two | suggestion three]
+  Make them short (3-6 words), natural buyer actions like "Book a test drive", "Ask about finance", etc.
 
 THE VEHICLE:
 `
@@ -1071,6 +1099,50 @@ THE VEHICLE:
     if(/hi|hello|hey|morning|afternoon|hiya/i.test(t))return `Hey! 👋 Welcome to CarGPT. I've got ${V.length} brilliant cars in stock across London, from ${fmt(13495)} to ${fmt(31995)}. I can search by budget, lifestyle, fuel type — or just tell me what you need and I'll find the perfect match. What are you after?`;
     if(/thanks|thank|cheers|ta /i.test(t))return `No worries! 😊 Anything else you'd like to know? I can check finance, MOT history, insurance costs, or help you book a test drive on any car.`;
     return `I've got ${V.length} cars in stock from ${fmt(13495)} to ${fmt(31995)} — hatchbacks, saloons, SUVs, petrol, diesel, electric, and hybrid. Tell me your budget, what you'll use it for, or what matters most to you, and I'll find the right match!`;
+  };
+
+  // ── Parse AI suggestions from response ──
+  const parseSuggestions = (text) => {
+    const match = text.match(/\[SUGGESTIONS?:\s*(.+?)\]/i);
+    if (!match) return { text, suggestions: [] };
+    const clean = text.replace(/\[SUGGESTIONS?:\s*.+?\]/i, "").trim();
+    const suggestions = match[1].split("|").map(s => s.trim()).filter(s => s.length > 0 && s.length < 50);
+    return { text: clean, suggestions: suggestions.slice(0, 4) };
+  };
+
+  // ── Voice-to-text (Web Speech API) ──
+  const [voiceActive, setVoiceActive] = useState(null); // 'main' | 'vehicle' | 'dealer' | null
+  const recognitionRef = useRef(null);
+  const startVoice = (target) => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { alert("Voice input not supported in this browser. Try Chrome or Safari."); return; }
+    if (voiceActive) { stopVoice(); return; }
+    const recognition = new SR();
+    recognition.lang = "en-GB";
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    recognition.maxAlternatives = 1;
+    recognitionRef.current = recognition;
+    setVoiceActive(target);
+    let finalText = "";
+    recognition.onresult = (e) => {
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += t; else interim = t;
+      }
+      const current = finalText + interim;
+      if (target === "main") setChatIn(current);
+      else if (target === "vehicle") setVIn(current);
+      else if (target === "dealer") setDIn(current);
+    };
+    recognition.onend = () => { setVoiceActive(null); recognitionRef.current = null; };
+    recognition.onerror = () => { setVoiceActive(null); recognitionRef.current = null; };
+    recognition.start();
+  };
+  const stopVoice = () => {
+    if (recognitionRef.current) { recognitionRef.current.stop(); recognitionRef.current = null; }
+    setVoiceActive(null);
   };
 
   const sendChat = async (text) => {
@@ -1110,11 +1182,17 @@ THE VEHICLE:
 
     try {
       const r = await callAI(merged, 300);
-      const msg = {role:"assistant", text: r || smartReply(text,{})};
+      const raw = r || smartReply(text,{});
+      const { text: cleanText, suggestions } = parseSuggestions(raw);
+      const msg = {role:"assistant", text: cleanText};
+      if(suggestions.length) msg.quickReplies = suggestions;
       if(cars?.length) msg.vehicles = cars.slice(0,4);
       setMsgs(p=>[...p,msg]);
     } catch(e) {
-      const msg = {role:"assistant", text: smartReply(text,{})};
+      const raw = smartReply(text,{});
+      const { text: cleanText, suggestions } = parseSuggestions(raw);
+      const msg = {role:"assistant", text: cleanText};
+      if(suggestions.length) msg.quickReplies = suggestions;
       if(cars?.length) msg.vehicles = cars.slice(0,4);
       setMsgs(p=>[...p,msg]);
     }
@@ -1139,9 +1217,17 @@ THE VEHICLE:
 
     try {
       const r = await callAI(merged, 300);
-      setVMsgs(p=>[...p,{role:"assistant",text:r||smartReply(text,{vehicle:v})}]);
+      const raw = r||smartReply(text,{vehicle:v});
+      const { text: cleanText, suggestions } = parseSuggestions(raw);
+      const msg = {role:"assistant",text:cleanText};
+      if(suggestions.length) msg.quickReplies = suggestions;
+      setVMsgs(p=>[...p,msg]);
     } catch(e) {
-      setVMsgs(p=>[...p,{role:"assistant",text:smartReply(text,{vehicle:v})}]);
+      const raw = smartReply(text,{vehicle:v});
+      const { text: cleanText, suggestions } = parseSuggestions(raw);
+      const msg = {role:"assistant",text:cleanText};
+      if(suggestions.length) msg.quickReplies = suggestions;
+      setVMsgs(p=>[...p,msg]);
     }
     setVTyping(false);
   };
@@ -1259,9 +1345,13 @@ THE VEHICLE:
       respText = fb();
     }
 
-    const resp = {role:"bot", text: respText};
-    if(/test.?drive|slot|book|view/i.test(text.toLowerCase()) && !/mon|tue|wed|thu|sat/i.test(text.toLowerCase()))
+    const { text: cleanResp, suggestions } = parseSuggestions(respText);
+    const resp = {role:"bot", text: cleanResp};
+    if (suggestions.length) {
+      resp.quickReplies = suggestions;
+    } else if(/test.?drive|slot|book|view/i.test(text.toLowerCase()) && !/mon|tue|wed|thu|sat/i.test(text.toLowerCase())) {
       resp.quickReplies = ["Mon 10am","Tue 2pm","Wed 11am","Thu 3:30pm","Sat 10am"];
+    }
     setDMsgs(p=>[...p,resp]);
     setDTyping(false);
 
@@ -1270,7 +1360,7 @@ THE VEHICLE:
       fetch("/api/conversations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "send", conversation_id: activeConvoId, sender_type: "dealer", text: respText }),
+        body: JSON.stringify({ action: "send", conversation_id: activeConvoId, sender_type: "dealer", text: cleanResp }),
       });
       // Refresh conversations list
       loadConversations();
@@ -1392,6 +1482,7 @@ THE VEHICLE:
           <input className="ai-search-input" placeholder="Try &quot;family SUV under £25k with low insurance&quot;..."
             value={heroIn} onChange={e=>setHeroIn(e.target.value)}
             onKeyDown={e=>{if(e.key==="Enter")sendChat(heroIn);}}/>
+          <button className={`btn-mic hero-mic${voiceActive==="main"?" active":""}`} onClick={()=>startVoice("main")} title="Voice search">{voiceActive==="main"?"⏹":"🎙️"}</button>
           <button className="ai-search-btn" onClick={()=>sendChat(heroIn)}>Search with AI</button>
         </div>
         <div className="quick-actions">
@@ -1920,12 +2011,16 @@ THE VEHICLE:
               {vMsgs.map((m,i) =>
                 <div key={i} className={`chat-msg ${m.role==="user"?"user":""} fade-in`} style={{marginBottom:8}}>
                   <div className="chat-bubble">{m.text}</div>
+                  {m.quickReplies && <div className="chat-quick-replies">{m.quickReplies.map((qr,j) =>
+                    <button key={j} className="chat-qr" onClick={()=>sendVMsg(qr)}>{qr}</button>
+                  )}</div>}
                 </div>
               )}
               {vTyping && <div className="chat-msg fade-in"><div className="chat-bubble"><div className="typing-dots"><div className="typing-dot"/><div className="typing-dot"/><div className="typing-dot"/></div></div></div>}
               <div ref={vRef}/>
               <div className="flex gap-2 mt-3">
-                <input className="input" placeholder="Ask about this car..." value={vIn} onChange={e=>setVIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")sendVMsg(vIn);}}/>
+                <input className="input" style={{flex:1}} placeholder="Ask about this car..." value={vIn} onChange={e=>setVIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")sendVMsg(vIn);}}/>
+                <button className={`btn-mic${voiceActive==="vehicle"?" active":""}`} onClick={()=>startVoice("vehicle")} title="Voice input">{voiceActive==="vehicle"?"⏹":"🎙️"}</button>
                 <button className="btn btn-primary" onClick={()=>sendVMsg(vIn)}>Send</button>
               </div>
             </div>}
@@ -2478,6 +2573,7 @@ THE VEHICLE:
               </div>
               <div className="flex gap-2 mt-3">
                 <input className="input flex-1" value={dIn} onChange={e=>setDIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")sendDMsg(dIn);}} placeholder="Type a message..."/>
+                <button className={`btn-mic${voiceActive==="dealer"?" active":""}`} onClick={()=>startVoice("dealer")} title="Voice input">{voiceActive==="dealer"?"⏹":"🎙️"}</button>
                 <button className="btn btn-primary" onClick={()=>sendDMsg(dIn)}>Send</button>
               </div>
             </>
@@ -2581,6 +2677,7 @@ THE VEHICLE:
           <input className="chat-input" placeholder="Ask CarGPT anything..."
             value={chatIn} onChange={e=>setChatIn(e.target.value)}
             onKeyDown={e=>{if(e.key==="Enter")sendChat(chatIn);}}/>
+          <button className={`btn-mic chat-mic${voiceActive==="main"?" active":""}`} onClick={()=>startVoice("main")} title="Voice input">{voiceActive==="main"?"⏹":"🎙️"}</button>
           <button className="chat-send" onClick={()=>sendChat(chatIn)}>↑</button>
         </div>
       </div>
