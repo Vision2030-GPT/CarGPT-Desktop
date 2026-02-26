@@ -375,33 +375,7 @@ input, select, textarea { font-family:var(--font); }
 .chat-mic:hover { background:rgba(66,133,244,0.08); }
 .chat-mic.active { background:#DC2626; border-radius:50%; color:white; animation:micPulse 1.5s infinite; }
 @keyframes micPulse { 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,0.3)} 50%{box-shadow:0 0 0 8px rgba(220,38,38,0)} }
-/* Voice listening states */
-.voice-listening { border-color:#DC2626 !important; box-shadow:0 0 0 3px rgba(220,38,38,0.15) !important; animation:voiceGlow 1.5s infinite !important; }
-@keyframes voiceGlow { 0%,100%{box-shadow:0 0 0 3px rgba(220,38,38,0.1)} 50%{box-shadow:0 0 0 6px rgba(220,38,38,0.2)} }
-.voice-bar {
-  max-width:680px; margin:10px auto 0; padding:10px 16px;
-  background:linear-gradient(135deg,#FEE2E2,#FEF2F2); border:1.5px solid #FECACA;
-  border-radius:var(--radius); display:flex; align-items:center; gap:12px;
-  animation:fadeIn 0.2s ease;
-}
-.voice-bar span { font-size:13px; font-weight:600; color:#DC2626; flex:1; }
-.voice-bar-inner { display:flex; gap:3px; align-items:center; }
-.voice-wave {
-  width:3px; border-radius:3px; background:#DC2626;
-  animation:voiceWave 0.8s ease-in-out infinite;
-}
-.voice-wave:nth-child(1){height:12px;animation-delay:0s}
-.voice-wave:nth-child(2){height:20px;animation-delay:0.1s}
-.voice-wave:nth-child(3){height:16px;animation-delay:0.2s}
-.voice-wave:nth-child(4){height:22px;animation-delay:0.3s}
-.voice-wave:nth-child(5){height:14px;animation-delay:0.4s}
-@keyframes voiceWave { 0%,100%{transform:scaleY(0.4)} 50%{transform:scaleY(1)} }
-.voice-bar-stop {
-  padding:6px 14px; border-radius:100px; border:1.5px solid #DC2626;
-  background:white; color:#DC2626; font-size:12px; font-weight:700;
-  cursor:pointer; transition:all 0.15s;
-}
-.voice-bar-stop:hover { background:#DC2626; color:white; }
+.voice-listening { border-color:#DC2626 !important; box-shadow:0 0 0 3px rgba(220,38,38,0.12) !important; }
 .typing-dots { display:flex; gap:4px; padding:4px 0; }
 .typing-dot {
   width:7px; height:7px; border-radius:50%;
@@ -1137,88 +1111,37 @@ THE VEHICLE:
     return { text: clean, suggestions: suggestions.slice(0, 4) };
   };
 
-  // ── Voice-to-text (Web Speech API) — continuous with visual feedback ──
-  const [voiceActive, setVoiceActive] = useState(null); // 'main' | 'vehicle' | 'dealer' | null
-  const [voiceText, setVoiceText] = useState("");
+  // ── Voice-to-text — simple, like Claude's mic ──
+  const [voiceActive, setVoiceActive] = useState(null);
   const recognitionRef = useRef(null);
-  const voiceTargetRef = useRef(null);
-  const voiceFinalRef = useRef("");
 
-  const startVoice = (target) => {
-    // Toggle off if already active
-    if (voiceActive) { stopVoice(); return; }
-
+  const toggleVoice = (target, setter) => {
+    if (voiceActive) {
+      if (recognitionRef.current) try { recognitionRef.current.stop(); } catch(e) {}
+      recognitionRef.current = null;
+      setVoiceActive(null);
+      return;
+    }
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { alert("Voice input isn't supported in this browser. Please try Chrome or Safari."); return; }
-
-    const recognition = new SR();
-    recognition.lang = "en-GB";
-    recognition.interimResults = true;
-    recognition.continuous = true;
-    recognition.maxAlternatives = 1;
-
-    recognitionRef.current = recognition;
-    voiceTargetRef.current = target;
-    voiceFinalRef.current = "";
+    if (!SR) return;
+    const r = new SR();
+    r.lang = "en-GB";
+    r.interimResults = true;
+    r.continuous = false;
+    recognitionRef.current = r;
     setVoiceActive(target);
-    setVoiceText("");
-
-    // Clear the current input
-    if (target === "main") { setChatIn(""); setHeroIn(""); }
-    else if (target === "vehicle") setVIn("");
-    else if (target === "dealer") setDIn("");
-
-    recognition.onresult = (e) => {
-      let final = voiceFinalRef.current;
+    let final = "";
+    r.onresult = (e) => {
       let interim = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const transcript = e.results[i][0].transcript;
-        if (e.results[i].isFinal) {
-          final += (final ? " " : "") + transcript;
-          voiceFinalRef.current = final;
-        } else {
-          interim = transcript;
-        }
+      for (let i = 0; i < e.results.length; i++) {
+        if (e.results[i].isFinal) final += e.results[i][0].transcript;
+        else interim += e.results[i][0].transcript;
       }
-      const display = (final + (interim ? " " + interim : "")).trim();
-      setVoiceText(display);
-      // Push to the right input in real-time
-      const t = voiceTargetRef.current;
-      if (t === "main") { setChatIn(display); setHeroIn(display); }
-      else if (t === "vehicle") setVIn(display);
-      else if (t === "dealer") setDIn(display);
+      setter((final + " " + interim).trim());
     };
-
-    recognition.onend = () => {
-      // If still meant to be active, restart (browser sometimes stops mid-speech)
-      if (recognitionRef.current && voiceTargetRef.current) {
-        try { recognition.start(); } catch(e) {
-          setVoiceActive(null);
-          recognitionRef.current = null;
-          voiceTargetRef.current = null;
-        }
-      }
-    };
-
-    recognition.onerror = (e) => {
-      if (e.error === "no-speech" || e.error === "aborted") return; // don't kill on silence
-      setVoiceActive(null);
-      recognitionRef.current = null;
-      voiceTargetRef.current = null;
-    };
-
-    try { recognition.start(); } catch(e) {
-      setVoiceActive(null);
-    }
-  };
-
-  const stopVoice = () => {
-    voiceTargetRef.current = null;
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch(e) {}
-      recognitionRef.current = null;
-    }
-    setVoiceActive(null);
+    r.onend = () => { setVoiceActive(null); recognitionRef.current = null; };
+    r.onerror = () => { setVoiceActive(null); recognitionRef.current = null; };
+    r.start();
   };
 
   const sendChat = async (text) => {
@@ -1555,12 +1478,12 @@ THE VEHICLE:
         </p>
         <div className="ai-search-box">
           <span className="ai-search-icon">✨</span>
-          <input className={`ai-search-input${voiceActive==="main"?" voice-listening":""}`} placeholder={voiceActive==="main"?"🎙️ Listening — speak now...":"Try \"family SUV under £25k with low insurance\"..."}
+          <input className={`ai-search-input${voiceActive==="main"?" voice-listening":""}`} placeholder={voiceActive==="main"?"Listening...":"Try \"family SUV under £25k with low insurance\"..."}
             value={heroIn} onChange={e=>setHeroIn(e.target.value)}
-            onKeyDown={e=>{if(e.key==="Enter"){if(voiceActive)stopVoice();sendChat(heroIn);}}}/>          <button className={`btn-mic hero-mic${voiceActive==="main"?" active":""}`} onClick={()=>startVoice("main")} title="Voice search">{voiceActive==="main"?"⏹":"🎙️"}</button>
-          <button className="ai-search-btn" onClick={()=>{if(voiceActive)stopVoice();sendChat(heroIn);}}>Search with AI</button>
+            onKeyDown={e=>{if(e.key==="Enter")sendChat(heroIn);}}/>
+          <button className={`btn-mic hero-mic${voiceActive==="main"?" active":""}`} onClick={()=>toggleVoice("main",(t)=>{setHeroIn(t);setChatIn(t);})} title="Voice search">{voiceActive==="main"?"⏹":"🎙️"}</button>
+          <button className="ai-search-btn" onClick={()=>sendChat(heroIn)}>Search with AI</button>
         </div>
-        {voiceActive==="main" && <div className="voice-bar"><div className="voice-bar-inner"><div className="voice-wave"/><div className="voice-wave"/><div className="voice-wave"/><div className="voice-wave"/><div className="voice-wave"/></div><span>Listening — speak now...</span><button className="voice-bar-stop" onClick={stopVoice}>Done</button></div>}
         <div className="quick-actions">
           {["I need a family car","Show me EVs","Budget under £15k","What's the best deal?","I'm a new driver","Compare the premium cars"].map(q =>
             <button key={q} className="quick-action" onClick={()=>sendChat(q)}>{q}</button>
@@ -2095,9 +2018,9 @@ THE VEHICLE:
               {vTyping && <div className="chat-msg fade-in"><div className="chat-bubble"><div className="typing-dots"><div className="typing-dot"/><div className="typing-dot"/><div className="typing-dot"/></div></div></div>}
               <div ref={vRef}/>
               <div className="flex gap-2 mt-3">
-                <input className={`input${voiceActive==="vehicle"?" voice-listening":""}`} style={{flex:1}} placeholder={voiceActive==="vehicle"?"🎙️ Listening...":"Ask about this car..."} value={vIn} onChange={e=>setVIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){if(voiceActive)stopVoice();sendVMsg(vIn);}}}/>
-                <button className={`btn-mic${voiceActive==="vehicle"?" active":""}`} onClick={()=>startVoice("vehicle")} title="Voice input">{voiceActive==="vehicle"?"⏹":"🎙️"}</button>
-                <button className="btn btn-primary" onClick={()=>{if(voiceActive)stopVoice();sendVMsg(vIn);}}>Send</button>
+                <input className={`input${voiceActive==="vehicle"?" voice-listening":""}`} style={{flex:1}} placeholder={voiceActive==="vehicle"?"Listening...":"Ask about this car..."} value={vIn} onChange={e=>setVIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")sendVMsg(vIn);}}/>
+                <button className={`btn-mic${voiceActive==="vehicle"?" active":""}`} onClick={()=>toggleVoice("vehicle",setVIn)} title="Voice input">{voiceActive==="vehicle"?"⏹":"🎙️"}</button>
+                <button className="btn btn-primary" onClick={()=>sendVMsg(vIn)}>Send</button>
               </div>
             </div>}
           </div>
@@ -2648,9 +2571,9 @@ THE VEHICLE:
                 <div ref={dRef}/>
               </div>
               <div className="flex gap-2 mt-3">
-                <input className={`input flex-1${voiceActive==="dealer"?" voice-listening":""}`} value={dIn} onChange={e=>setDIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){if(voiceActive)stopVoice();sendDMsg(dIn);}}} placeholder={voiceActive==="dealer"?"🎙️ Listening...":"Type a message..."}/>
-                <button className={`btn-mic${voiceActive==="dealer"?" active":""}`} onClick={()=>startVoice("dealer")} title="Voice input">{voiceActive==="dealer"?"⏹":"🎙️"}</button>
-                <button className="btn btn-primary" onClick={()=>{if(voiceActive)stopVoice();sendDMsg(dIn);}}>Send</button>
+                <input className={`input flex-1${voiceActive==="dealer"?" voice-listening":""}`} value={dIn} onChange={e=>setDIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")sendDMsg(dIn);}} placeholder={voiceActive==="dealer"?"Listening...":"Type a message..."}/>
+                <button className={`btn-mic${voiceActive==="dealer"?" active":""}`} onClick={()=>toggleVoice("dealer",setDIn)} title="Voice input">{voiceActive==="dealer"?"⏹":"🎙️"}</button>
+                <button className="btn btn-primary" onClick={()=>sendDMsg(dIn)}>Send</button>
               </div>
             </>
           )}
@@ -2750,11 +2673,11 @@ THE VEHICLE:
           <div ref={chatRef}/>
         </div>
         <div className="chat-input-area">
-          <input className={`chat-input${voiceActive==="main"?" voice-listening":""}`} placeholder={voiceActive==="main"?"🎙️ Listening...":"Ask CarGPT anything..."}
+          <input className={`chat-input${voiceActive==="main"?" voice-listening":""}`} placeholder={voiceActive==="main"?"Listening...":"Ask CarGPT anything..."}
             value={chatIn} onChange={e=>setChatIn(e.target.value)}
-            onKeyDown={e=>{if(e.key==="Enter"){if(voiceActive)stopVoice();sendChat(chatIn);}}}/>
-          <button className={`btn-mic chat-mic${voiceActive==="main"?" active":""}`} onClick={()=>startVoice("main")} title="Voice input">{voiceActive==="main"?"⏹":"🎙️"}</button>
-          <button className="chat-send" onClick={()=>{if(voiceActive)stopVoice();sendChat(chatIn);}}>↑</button>
+            onKeyDown={e=>{if(e.key==="Enter")sendChat(chatIn);}}/>
+          <button className={`btn-mic chat-mic${voiceActive==="main"?" active":""}`} onClick={()=>toggleVoice("main",(t)=>{setChatIn(t);setHeroIn(t);})} title="Voice input">{voiceActive==="main"?"⏹":"🎙️"}</button>
+          <button className="chat-send" onClick={()=>sendChat(chatIn)}>↑</button>
         </div>
       </div>
       {!chatOpen &&
