@@ -269,6 +269,71 @@ input, select, textarea { font-family:var(--font); }
 }
 .filter-tag-x:hover { background:var(--primary); color:white; }
 
+/* FILTER PILL BAR (Auto Trader style) */
+.filter-pills {
+  display:flex; gap:8px; overflow-x:auto; padding:0 0 12px;
+  scrollbar-width:none; -ms-overflow-style:none;
+}
+.filter-pills::-webkit-scrollbar { display:none; }
+.filter-pill {
+  display:flex; align-items:center; gap:6px;
+  padding:9px 16px; border-radius:100px;
+  border:1.5px solid var(--border); background:var(--surface);
+  font-size:13px; font-weight:600; color:var(--text);
+  cursor:pointer; white-space:nowrap; transition:all 0.15s;
+}
+.filter-pill:hover { border-color:#9CA3AF; }
+.filter-pill.has-value {
+  background:var(--primary); color:white; border-color:var(--primary);
+}
+.filter-pill-chevron { font-size:10px; opacity:0.5; }
+.filter-sort-btn {
+  display:flex; align-items:center; gap:6px;
+  padding:9px 18px; border-radius:100px;
+  border:1.5px solid var(--text); background:var(--text); color:white;
+  font-size:13px; font-weight:700; cursor:pointer;
+  white-space:nowrap; transition:all 0.15s; flex-shrink:0;
+}
+.filter-sort-btn:hover { opacity:0.9; }
+
+/* FILTER PANEL (Slide-over accordion) */
+.fp-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:18px 0; border-bottom:1px solid var(--border-light);
+  cursor:pointer; transition:background 0.1s;
+}
+.fp-row:hover { background:rgba(0,0,0,0.01); }
+.fp-row-left { display:flex; align-items:center; gap:14px; }
+.fp-row-icon {
+  width:28px; height:28px; display:flex; align-items:center; justify-content:center;
+  font-size:16px; color:var(--text-secondary); flex-shrink:0;
+}
+.fp-row-label { font-size:15px; font-weight:600; color:var(--text); }
+.fp-row-value { font-size:13px; color:var(--text-tertiary); margin-top:1px; }
+.fp-row-chevron {
+  font-size:12px; color:var(--text-tertiary); transition:transform 0.2s;
+}
+.fp-row-chevron.open { transform:rotate(180deg); }
+.fp-options {
+  padding:8px 0 16px 42px;
+  display:flex; flex-wrap:wrap; gap:8px;
+  animation:fadeIn 0.15s ease;
+}
+.fp-option {
+  padding:8px 16px; border-radius:10px;
+  border:1.5px solid var(--border); background:var(--surface);
+  font-size:13px; font-weight:500; color:var(--text);
+  cursor:pointer; transition:all 0.15s;
+}
+.fp-option:hover { border-color:#9CA3AF; }
+.fp-option.active {
+  background:var(--primary); color:white; border-color:var(--primary);
+}
+.fp-clear-row {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:16px 0; border-bottom:2px solid var(--border);
+}
+
 /* VEHICLE GRID */
 .vehicle-grid {
   display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));
@@ -1017,13 +1082,20 @@ export default function CarGPTDesktop() {
   const [fDoors, setFDoors] = useState("All");
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [aiSearchQuery, setAiSearchQuery] = useState("");
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [filterAccordion, setFilterAccordion] = useState(null);
+  const [fEngine, setFEngine] = useState("All");
+  const [fBhp, setFBhp] = useState("All");
+  const [fSeats, setFSeats] = useState("All");
+  const [fBoot, setFBoot] = useState("All");
 
-  const activeFilterCount = [fFuel,fBody,fPrice,fTrans,fMiles,fYear,fInsurance,fUlez,fColour,fDoors].filter(f=>f!=="All").length;
+  const activeFilterCount = [fFuel,fBody,fPrice,fTrans,fMiles,fYear,fInsurance,fUlez,fColour,fDoors,fEngine,fBhp,fSeats,fBoot].filter(f=>f!=="All").length;
 
   const clearAllFilters = () => {
     setFFuel("All"); setFBody("All"); setFPrice("All"); setFTrans("All");
     setFMiles("All"); setFYear("All"); setFInsurance("All"); setFUlez("All");
     setFColour("All"); setFDoors("All"); setAiSearchQuery("");
+    setFEngine("All"); setFBhp("All"); setFSeats("All"); setFBoot("All");
   };
 
   // Smart AI filter parser — sets filters from natural language
@@ -1070,7 +1142,11 @@ export default function CarGPTDesktop() {
     (fInsurance==="All"||(fInsurance==="low"&&v.insuranceGroup<=15)||(fInsurance==="mid"&&v.insuranceGroup>15&&v.insuranceGroup<=25)||(fInsurance==="high"&&v.insuranceGroup>25)) &&
     (fUlez==="All"||(fUlez==="yes"&&v.ulezCompliant)||(fUlez==="no"&&!v.ulezCompliant)) &&
     (fColour==="All"||v.colour===fColour) &&
-    (fDoors==="All"||v.doors===parseInt(fDoors))
+    (fDoors==="All"||v.doors===parseInt(fDoors)) &&
+    (fEngine==="All"||(fEngine==="1.0"&&parseFloat(v.engineSize)<=1.0)||(fEngine==="1.5"&&parseFloat(v.engineSize)<=1.5)||(fEngine==="2.0"&&parseFloat(v.engineSize)<=2.0)||(fEngine==="2.0+"&&parseFloat(v.engineSize)>2.0)||v.engineSize==="Electric") &&
+    (fBhp==="All"||(fBhp==="u150"&&v.specs.bhp<150)||(fBhp==="150-250"&&v.specs.bhp>=150&&v.specs.bhp<=250)||(fBhp==="250+"&&v.specs.bhp>250)) &&
+    (fSeats==="All"||(fSeats==="4"&&v.doors<=4)||(fSeats==="5"&&v.doors===5)) &&
+    (fBoot==="All"||(fBoot==="s"&&v.specs.bootSpace<350)||(fBoot==="m"&&v.specs.bootSpace>=350&&v.specs.bootSpace<500)||(fBoot==="l"&&v.specs.bootSpace>=500))
   ).sort((a,b) =>
     fSort==="price-low"?a.price-b.price : fSort==="price-high"?b.price-a.price :
     fSort==="newest"?a.daysListed-b.daysListed : fSort==="miles-low"?a.mileage-b.mileage :
@@ -2127,46 +2203,36 @@ THE VEHICLE:
   const deleteSearch = (id) => setSavedSearches(p=>p.filter(s=>s.id!==id));
 
   const SearchPage = () => {
-    // Build active filter tags for display
+    // Active filter tags
     const activeTags = [];
     if(fFuel!=="All") activeTags.push({label:fFuel, clear:()=>setFFuel("All")});
     if(fBody!=="All") activeTags.push({label:fBody, clear:()=>setFBody("All")});
     if(fPrice!=="All") activeTags.push({label:{u15:"Under £15k",u20:"Under £20k",u25:"Under £25k",u30:"Under £30k","25+":"Over £25k","15-25":"£15-25k"}[fPrice], clear:()=>setFPrice("All")});
     if(fTrans!=="All") activeTags.push({label:fTrans, clear:()=>setFTrans("All")});
     if(fMiles!=="All") activeTags.push({label:{u10:"Under 10k mi",u20:"Under 20k mi",u30:"Under 30k mi",u50:"Under 50k mi"}[fMiles], clear:()=>setFMiles("All")});
-    if(fYear!=="All") activeTags.push({label:fYear+" onwards", clear:()=>setFYear("All")});
-    if(fInsurance!=="All") activeTags.push({label:{low:"Low insurance",mid:"Mid insurance",high:"High insurance"}[fInsurance], clear:()=>setFInsurance("All")});
+    if(fYear!=="All") activeTags.push({label:fYear, clear:()=>setFYear("All")});
+    if(fInsurance!=="All") activeTags.push({label:{low:"Ins. 1-15",mid:"Ins. 16-25",high:"Ins. 26+"}[fInsurance], clear:()=>setFInsurance("All")});
     if(fUlez!=="All") activeTags.push({label:fUlez==="yes"?"ULEZ ✓":"Not ULEZ", clear:()=>setFUlez("All")});
     if(fColour!=="All") activeTags.push({label:fColour, clear:()=>setFColour("All")});
     if(fDoors!=="All") activeTags.push({label:fDoors+" door", clear:()=>setFDoors("All")});
+    if(fEngine!=="All") activeTags.push({label:fEngine==="2.0+"?"2.0L+":"≤"+fEngine+"L", clear:()=>setFEngine("All")});
+    if(fBhp!=="All") activeTags.push({label:{u150:"Under 150bhp","150-250":"150-250bhp","250+":"250+bhp"}[fBhp], clear:()=>setFBhp("All")});
+    if(fBoot!=="All") activeTags.push({label:{s:"Small boot",m:"Medium boot",l:"Large boot"}[fBoot], clear:()=>setFBoot("All")});
 
-    const Sel = ({value, onChange, children, hasValue}) => (
-      <select className={`filter-select${hasValue?" has-value":""}`} value={value} onChange={e=>onChange(e.target.value)}>
-        {children}
-      </select>
-    );
+    // Pill bar items — show current value if set
+    const pills = [
+      {label:fYear!=="All"?fYear:"Year", hasVal:fYear!=="All", key:"year"},
+      {label:fPrice!=="All"?{u15:"Under £15k",u20:"Under £20k",u25:"Under £25k",u30:"Under £30k","25+":"Over £25k"}[fPrice]:"Price", hasVal:fPrice!=="All", key:"price"},
+      {label:fMiles!=="All"?{u10:"Under 10k",u20:"Under 20k",u30:"Under 30k",u50:"Under 50k"}[fMiles]:"Mileage", hasVal:fMiles!=="All", key:"mileage"},
+      {label:fTrans!=="All"?fTrans:"Gearbox", hasVal:fTrans!=="All", key:"gearbox"},
+      {label:fBody!=="All"?fBody:"Body type", hasVal:fBody!=="All", key:"body"},
+      {label:fFuel!=="All"?fFuel:"Fuel type", hasVal:fFuel!=="All", key:"fuel"},
+      {label:fEngine!=="All"?(fEngine==="2.0+"?"2.0L+":"≤"+fEngine+"L"):"Engine size", hasVal:fEngine!=="All", key:"engine"},
+      {label:fColour!=="All"?fColour:"Colour", hasVal:fColour!=="All", key:"colour"},
+    ];
 
     return (
     <div className="section" style={{paddingBottom:80}}>
-      {/* Header */}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
-        <div>
-          <div className="section-title" style={{marginBottom:2}}>Browse Cars</div>
-          <div className="text-sm text-muted">
-            <strong>{filtered.length}</strong> of {V.length} vehicles
-            {aiSearchQuery && <> matching "<em>{aiSearchQuery}</em>"</>}
-          </div>
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          <button className="btn btn-outline btn-sm" onClick={()=>setShowSavedSearches(!showSavedSearches)} style={{fontSize:12}}>
-            🔔 {savedSearches.length}
-          </button>
-          <button className="btn btn-primary btn-sm" onClick={saveCurrentSearch} style={{fontSize:12}}>
-            💾 Save
-          </button>
-        </div>
-      </div>
-
       {/* AI Search Banner */}
       {aiSearchQuery && (
         <div className="fade-in" style={{
@@ -2186,7 +2252,57 @@ THE VEHICLE:
         </div>
       )}
 
-      {/* Saved Searches Dropdown */}
+      {/* Pill Bar — Auto Trader style */}
+      <div className="filter-pills">
+        {pills.map(p => (
+          <button key={p.key} className={`filter-pill${p.hasVal?" has-value":""}`}
+            onClick={()=>{setShowFilterPanel(true);setFilterAccordion(p.key);}}>
+            {p.label} <span className="filter-pill-chevron">▾</span>
+          </button>
+        ))}
+        <button className="filter-sort-btn" onClick={()=>{setShowFilterPanel(true);setFilterAccordion("sort");}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 6h16M4 12h10M4 18h4"/></svg>
+          Filter and sort
+          {activeFilterCount > 0 && <span style={{
+            background:"#DC2626",color:"white",borderRadius:100,
+            minWidth:18,height:18,fontSize:10,fontWeight:700,
+            display:"inline-flex",alignItems:"center",justifyContent:"center"
+          }}>{activeFilterCount}</span>}
+        </button>
+      </div>
+
+      {/* Active filter tags */}
+      {activeTags.length > 0 && (
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
+          {activeTags.map((t,i) => (
+            <span key={i} className="filter-tag">
+              {t.label}
+              <button className="filter-tag-x" onClick={t.clear}>✕</button>
+            </span>
+          ))}
+          <button onClick={clearAllFilters} style={{
+            background:"none",border:"none",cursor:"pointer",
+            fontSize:12,fontWeight:600,color:"var(--error)",padding:"6px 8px"
+          }}>Clear all</button>
+        </div>
+      )}
+
+      {/* Results count + sort */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <div className="text-sm">
+          <strong>{filtered.length}</strong> <span className="text-muted">of {V.length} cars</span>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button className="btn btn-outline btn-sm" onClick={()=>setShowSavedSearches(!showSavedSearches)} style={{fontSize:12,padding:"6px 12px"}}>
+            🔔 {savedSearches.length}
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={saveCurrentSearch} style={{fontSize:12,padding:"6px 12px"}}>
+            💾 Save
+          </button>
+        </div>
+      </div>
+
+      {/* Saved Searches */}
       {showSavedSearches && (
         <div className="card mb-4 fade-in" style={{padding:16}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
@@ -2215,116 +2331,6 @@ THE VEHICLE:
         </div>
       )}
 
-      {/* Filter Dropdowns — clean grid */}
-      <div className="filter-grid" style={{marginBottom:12}}>
-        <Sel value={fFuel} onChange={setFFuel} hasValue={fFuel!=="All"}>
-          <option value="All">Any fuel</option>
-          <option value="Petrol">Petrol</option>
-          <option value="Diesel">Diesel</option>
-          <option value="Electric">Electric</option>
-          <option value="Hybrid">Hybrid</option>
-        </Sel>
-        <Sel value={fBody} onChange={setFBody} hasValue={fBody!=="All"}>
-          <option value="All">Any body</option>
-          <option value="Hatchback">Hatchback</option>
-          <option value="Saloon">Saloon</option>
-          <option value="SUV">SUV</option>
-        </Sel>
-        <Sel value={fPrice} onChange={setFPrice} hasValue={fPrice!=="All"}>
-          <option value="All">Any price</option>
-          <option value="u15">Under £15,000</option>
-          <option value="u20">Under £20,000</option>
-          <option value="u25">Under £25,000</option>
-          <option value="u30">Under £30,000</option>
-          <option value="25+">Over £25,000</option>
-        </Sel>
-        <Sel value={fTrans} onChange={setFTrans} hasValue={fTrans!=="All"}>
-          <option value="All">Any gearbox</option>
-          <option value="Automatic">Automatic</option>
-          <option value="Manual">Manual</option>
-        </Sel>
-        <Sel value={fMiles} onChange={setFMiles} hasValue={fMiles!=="All"}>
-          <option value="All">Any mileage</option>
-          <option value="u10">Under 10,000</option>
-          <option value="u20">Under 20,000</option>
-          <option value="u30">Under 30,000</option>
-          <option value="u50">Under 50,000</option>
-        </Sel>
-        <Sel value={fYear} onChange={setFYear} hasValue={fYear!=="All"}>
-          <option value="All">Any year</option>
-          <option value="2024+">2024 onwards</option>
-          <option value="2022+">2022 onwards</option>
-          <option value="2020+">2020 onwards</option>
-        </Sel>
-        <Sel value={fColour} onChange={setFColour} hasValue={fColour!=="All"}>
-          <option value="All">Any colour</option>
-          {[...new Set(V.map(v=>v.colour))].sort().map(c=><option key={c} value={c}>{c}</option>)}
-        </Sel>
-        <Sel value={fDoors} onChange={v=>setFDoors(v)} hasValue={fDoors!=="All"}>
-          <option value="All">Any doors</option>
-          <option value="3">3 door</option>
-          <option value="5">5 door</option>
-        </Sel>
-        {showMoreFilters && <>
-          <Sel value={fInsurance} onChange={setFInsurance} hasValue={fInsurance!=="All"}>
-            <option value="All">Any insurance</option>
-            <option value="low">Low (group 1-15)</option>
-            <option value="mid">Mid (group 16-25)</option>
-            <option value="high">High (group 26+)</option>
-          </Sel>
-          <Sel value={fUlez} onChange={setFUlez} hasValue={fUlez!=="All"}>
-            <option value="All">ULEZ — any</option>
-            <option value="yes">ULEZ compliant</option>
-            <option value="no">Not ULEZ</option>
-          </Sel>
-        </>}
-      </div>
-
-      {/* More/fewer filters toggle */}
-      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
-        <button onClick={()=>setShowMoreFilters(!showMoreFilters)} style={{
-          background:"none",border:"none",cursor:"pointer",fontSize:13,fontWeight:600,
-          color:"var(--primary)",padding:0,display:"flex",alignItems:"center",gap:4
-        }}>
-          {showMoreFilters ? "− Fewer filters" : "+ Insurance, ULEZ"}
-        </button>
-        {activeFilterCount > 0 && (
-          <button onClick={clearAllFilters} style={{
-            background:"none",border:"none",cursor:"pointer",fontSize:12,fontWeight:600,
-            color:"var(--error)",padding:0
-          }}>Clear all ({activeFilterCount})</button>
-        )}
-      </div>
-
-      {/* Active filter tags */}
-      {activeTags.length > 0 && (
-        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:16}}>
-          {activeTags.map((t,i) => (
-            <span key={i} className="filter-tag">
-              {t.label}
-              <button className="filter-tag-x" onClick={t.clear}>✕</button>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Sort + results count */}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-        <div className="text-sm text-muted"><strong style={{color:"var(--text)"}}>{filtered.length}</strong> result{filtered.length!==1?"s":""}</div>
-        <div style={{display:"flex",alignItems:"center",gap:4}}>
-          <span className="text-xs text-muted" style={{marginRight:4}}>Sort:</span>
-          <select className="filter-select" value={fSort} onChange={e=>setFSort(e.target.value)} style={{padding:"6px 28px 6px 10px",fontSize:12}}>
-            <option value="match">Best match</option>
-            <option value="price-low">Price: low to high</option>
-            <option value="price-high">Price: high to low</option>
-            <option value="newest">Newest listed</option>
-            <option value="miles-low">Lowest mileage</option>
-            <option value="deal">Best deal</option>
-            <option value="insurance">Lowest insurance</option>
-          </select>
-        </div>
-      </div>
-
       {/* Results */}
       {filtered.length === 0 ? (
         <div style={{textAlign:"center",padding:"60px 20px"}}>
@@ -2336,6 +2342,114 @@ THE VEHICLE:
       ) : (
         <div className="vehicle-grid">{filtered.map(v => VCard({v}))}</div>
       )}
+
+      {/* Filter & Sort Panel — full-screen slide-over */}
+      {showFilterPanel && (<>
+        <div className="modal-backdrop" onClick={()=>setShowFilterPanel(false)}/>
+        <div className="slide-over" style={{overflowY:"auto"}}>
+          <div className="slide-header">
+            <div className="slide-title">Filter and sort</div>
+            <button className="slide-close" onClick={()=>setShowFilterPanel(false)}>✕</button>
+          </div>
+          <div style={{padding:"0 24px 100px"}}>
+            {/* Saved search link */}
+            {!user && (
+              <div style={{padding:"12px 16px",margin:"16px 0",background:"#F8FAFC",borderRadius:10,textAlign:"center"}}>
+                <button onClick={()=>{setShowFilterPanel(false);setAuthModal("login");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,fontWeight:600,color:"var(--primary)"}}>
+                  Sign in to see your saved searches →
+                </button>
+              </div>
+            )}
+
+            {/* Clear + count */}
+            {activeFilterCount > 0 && (
+              <div className="fp-clear-row">
+                <span className="text-sm text-muted">{activeFilterCount} filter{activeFilterCount>1?"s":""} active</span>
+                <button onClick={clearAllFilters} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,fontWeight:600,color:"var(--error)"}}>Clear all</button>
+              </div>
+            )}
+
+            {/* Accordion Rows */}
+            {[
+              {key:"sort",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M3 12h12M3 18h6"/></svg>,label:"Sort",value:{match:"Relevance","price-low":"Price: low","price-high":"Price: high",newest:"Newest",deal:"Best deal","miles-low":"Low mileage",insurance:"Low insurance"}[fSort],
+                opts:[{k:"match",l:"Relevance"},{k:"price-low",l:"Price: low to high"},{k:"price-high",l:"Price: high to low"},{k:"newest",l:"Newest listed"},{k:"deal",l:"Best deal"},{k:"miles-low",l:"Lowest mileage"},{k:"insurance",l:"Lowest insurance"}],
+                val:fSort,set:setFSort},
+              {key:"price",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6"/></svg>,label:"Price",value:fPrice==="All"?"Any":{u15:"Under £15k",u20:"Under £20k",u25:"Under £25k",u30:"Under £30k","25+":"Over £25k"}[fPrice],
+                opts:[{k:"All",l:"Any price"},{k:"u15",l:"Under £15,000"},{k:"u20",l:"Under £20,000"},{k:"u25",l:"Under £25,000"},{k:"u30",l:"Under £30,000"},{k:"25+",l:"Over £25,000"}],
+                val:fPrice,set:setFPrice},
+              {key:"year",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>,label:"Year",value:fYear==="All"?"Any":fYear+" onwards",
+                opts:[{k:"All",l:"Any year"},{k:"2024+",l:"2024 onwards"},{k:"2022+",l:"2022 onwards"},{k:"2020+",l:"2020 onwards"}],
+                val:fYear,set:setFYear},
+              {key:"mileage",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>,label:"Mileage",value:fMiles==="All"?"Any":{u10:"Under 10k",u20:"Under 20k",u30:"Under 30k",u50:"Under 50k"}[fMiles],
+                opts:[{k:"All",l:"Any mileage"},{k:"u10",l:"Under 10,000"},{k:"u20",l:"Under 20,000"},{k:"u30",l:"Under 30,000"},{k:"u50",l:"Under 50,000"}],
+                val:fMiles,set:setFMiles},
+              {key:"gearbox",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M6 8v10M18 8v10M8 6h8"/></svg>,label:"Gearbox",value:fTrans==="All"?"Any":fTrans,
+                opts:[{k:"All",l:"Any"},{k:"Automatic",l:"Automatic"},{k:"Manual",l:"Manual"}],
+                val:fTrans,set:setFTrans},
+              {key:"body",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 17h14M5 17a2 2 0 01-2-2V9l3-5h12l3 5v6a2 2 0 01-2 2"/><circle cx="7.5" cy="17" r="1.5"/><circle cx="16.5" cy="17" r="1.5"/></svg>,label:"Body type",value:fBody==="All"?"Any":fBody,
+                opts:[{k:"All",l:"Any"},{k:"Hatchback",l:"Hatchback"},{k:"Saloon",l:"Saloon"},{k:"SUV",l:"SUV"}],
+                val:fBody,set:setFBody},
+              {key:"fuel",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 22V6l3-4h6l3 4v16"/><path d="M3 14h12M15 6l3 3v8a2 2 0 004 0V10"/></svg>,label:"Fuel type",value:fFuel==="All"?"Any":fFuel,
+                opts:[{k:"All",l:"Any"},{k:"Petrol",l:"Petrol"},{k:"Diesel",l:"Diesel"},{k:"Electric",l:"Electric"},{k:"Hybrid",l:"Hybrid"}],
+                val:fFuel,set:setFFuel},
+              {key:"colour",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.5-.7 1.5-1.5 0-.4-.1-.7-.4-1-.3-.3-.4-.6-.4-1 0-.8.7-1.5 1.5-1.5H16c3.3 0 6-2.7 6-6 0-5.5-4.5-10-10-10z"/><circle cx="7.5" cy="11.5" r="1.5"/><circle cx="12" cy="7.5" r="1.5"/><circle cx="16.5" cy="11.5" r="1.5"/></svg>,label:"Colour",value:fColour==="All"?"Any":fColour,
+                opts:[{k:"All",l:"Any colour"},...[...new Set(V.map(v=>v.colour))].sort().map(c=>({k:c,l:c}))],
+                val:fColour,set:setFColour},
+              {key:"doors",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>,label:"Doors",value:fDoors==="All"?"Any":fDoors+" door",
+                opts:[{k:"All",l:"Any"},{k:"3",l:"3 door"},{k:"5",l:"5 door"}],
+                val:fDoors,set:setFDoors},
+              {key:"engine",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="8" width="16" height="10" rx="2"/><path d="M8 8V5h8v3M12 12v3"/></svg>,label:"Engine size",value:fEngine==="All"?"Any":fEngine==="2.0+"?"Over 2.0L":"Up to "+fEngine+"L",
+                opts:[{k:"All",l:"Any"},{k:"1.0",l:"Up to 1.0L"},{k:"1.5",l:"Up to 1.5L"},{k:"2.0",l:"Up to 2.0L"},{k:"2.0+",l:"Over 2.0L"}],
+                val:fEngine,set:setFEngine},
+              {key:"bhp",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>,label:"Engine power",value:fBhp==="All"?"Any":{u150:"Under 150bhp","150-250":"150-250bhp","250+":"250+ bhp"}[fBhp],
+                opts:[{k:"All",l:"Any"},{k:"u150",l:"Under 150 bhp"},{k:"150-250",l:"150-250 bhp"},{k:"250+",l:"250+ bhp"}],
+                val:fBhp,set:setFBhp},
+              {key:"boot",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 8h-3V4H7v4H4l-2 6v6h4l1-2h10l1 2h4v-6l-2-6z"/></svg>,label:"Boot space",value:fBoot==="All"?"Any":{s:"Small (<350L)",m:"Medium (350-500L)",l:"Large (500L+)"}[fBoot],
+                opts:[{k:"All",l:"Any"},{k:"s",l:"Small (under 350L)"},{k:"m",l:"Medium (350-500L)"},{k:"l",l:"Large (500L+)"}],
+                val:fBoot,set:setFBoot},
+              {key:"insurance",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,label:"Insurance group",value:fInsurance==="All"?"Any":{low:"Group 1-15",mid:"Group 16-25",high:"Group 26+"}[fInsurance],
+                opts:[{k:"All",l:"Any"},{k:"low",l:"Low (group 1-15)"},{k:"mid",l:"Mid (group 16-25)"},{k:"high",l:"High (group 26+)"}],
+                val:fInsurance,set:setFInsurance},
+              {key:"ulez",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22c5.5 0 10-4.5 10-10S17.5 2 12 2 2 6.5 2 12s4.5 10 10 10z"/><path d="M8 12l3 3 5-5"/></svg>,label:"ULEZ",value:fUlez==="All"?"Any":fUlez==="yes"?"Compliant":"Not compliant",
+                opts:[{k:"All",l:"Any"},{k:"yes",l:"ULEZ compliant"},{k:"no",l:"Not ULEZ compliant"}],
+                val:fUlez,set:setFUlez},
+            ].map(row => (
+              <div key={row.key}>
+                <div className="fp-row" onClick={()=>setFilterAccordion(filterAccordion===row.key?null:row.key)}>
+                  <div className="fp-row-left">
+                    <div className="fp-row-icon">{row.icon}</div>
+                    <div>
+                      <div className="fp-row-label">{row.label}</div>
+                      <div className="fp-row-value">{row.value}</div>
+                    </div>
+                  </div>
+                  <span className={`fp-row-chevron ${filterAccordion===row.key?"open":""}`}>▾</span>
+                </div>
+                {filterAccordion===row.key && (
+                  <div className="fp-options">
+                    {row.opts.map(o => (
+                      <button key={o.k} className={`fp-option${row.val===o.k?" active":""}`}
+                        onClick={()=>row.set(o.k)}>{o.l}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Sticky bottom bar */}
+          <div style={{
+            position:"sticky",bottom:0,padding:"16px 24px",
+            background:"white",borderTop:"1px solid var(--border)",
+            display:"flex",gap:12
+          }}>
+            <button className="btn btn-outline" style={{flex:1}} onClick={clearAllFilters}>Clear all</button>
+            <button className="btn btn-primary" style={{flex:2}} onClick={()=>setShowFilterPanel(false)}>
+              Show {filtered.length} car{filtered.length!==1?"s":""}
+            </button>
+          </div>
+        </div>
+      </>)}
     </div>
     );
   };
