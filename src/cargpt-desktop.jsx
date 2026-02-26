@@ -875,14 +875,50 @@ export default function CarGPTDesktop() {
   useEffect(() => { vRef.current?.scrollIntoView({behavior:"smooth"}); }, [vMsgs,vTyping]);
   useEffect(() => { if(sel){setDetailTab("details");setVMsgs([]);} }, [sel]);
 
-  // Dealer Chat
+  // Dealer Chat — now with real-time persistence
   const [showDChat, setShowDChat] = useState(false);
   const [dMsgs, setDMsgs] = useState([]);
   const [dIn, setDIn] = useState("");
   const [dTyping, setDTyping] = useState(false);
   const [dCtx, setDCtx] = useState(null);
+  const [activeConvoId, setActiveConvoId] = useState(null);
+  const [conversations, setConversations] = useState([]);
+  const [inboxOpen, setInboxOpen] = useState(false);
   const dRef = useRef(null);
   useEffect(() => { dRef.current?.scrollIntoView({behavior:"smooth"}); }, [dMsgs,dTyping]);
+
+  // Load conversations on login
+  const loadConversations = async () => {
+    if (!user?.id) return;
+    try {
+      const r = await fetch(`/api/conversations?user_id=${user.id}`);
+      const data = await r.json();
+      if (data.conversations) setConversations(data.conversations);
+    } catch {}
+  };
+  useEffect(() => { if (user?.id) loadConversations(); }, [user?.id]);
+
+  // Poll for new messages in active conversation
+  useEffect(() => {
+    if (!activeConvoId) return;
+    const poll = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/conversations?id=${activeConvoId}`);
+        const data = await r.json();
+        if (data.messages) {
+          const dbMsgs = data.messages.map(m => ({
+            id: m.id,
+            role: m.sender_type === "user" ? "user" : "bot",
+            text: m.content,
+            time: m.created_at,
+          }));
+          // Only update if we have more messages than current
+          setDMsgs(prev => dbMsgs.length > prev.length ? dbMsgs : prev);
+        }
+      } catch {}
+    }, 5000);
+    return () => clearInterval(poll);
+  }, [activeConvoId]);
 
   // All tool modals state
   const [activeModal, setActiveModal] = useState(null);
@@ -1110,20 +1146,83 @@ THE VEHICLE:
     setVTyping(false);
   };
 
-  const openDChat = (vid, flow="general") => {
+  const openDChat = async (vid, flow="general") => {
     if (!user) { setAuthModal("login"); return; }
     const v=V.find(x=>x.id===vid)||V[0], dl=D.find(d=>d.id===v.dealerId)||D[0];
     setDCtx({vehicleId:vid,flow,vehicle:v,dealer:dl});
-    const g=flow==="testDrive"?`Hey! 👋 Great choice on the ${v.year} ${v.make} ${v.model}. I've got slots Mon 10am, Tue 2pm, Wed 11am, Thu 3:30pm. Which works?`:`Hey! 👋 Thanks for your interest in the ${v.year} ${v.make} ${v.model} at ${fmt(v.price)}. How can I help?`;
-    const qr=flow==="testDrive"?["Mon 10am","Tue 2pm","Wed 11am","Thu 3:30pm"]:["Is it available?","📅 Test drive","💳 Finance options","🔄 Part exchange"];
-    setDMsgs([{role:"bot",text:g,quickReplies:qr}]); setShowDChat(true); setActiveModal("dealer-chat");
+    setShowDChat(true); setActiveModal("dealer-chat");
+
+    // Create or load conversation from Supabase
+    try {
+      const cr = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: user.id, dealer_id: v.dealerId, vehicle_id: vid }),
+      });
+      const cdata = await cr.json();
+      const convoId = cdata.conversation_id;
+      setActiveConvoId(convoId);
+
+      if (cdata.existing) {
+        // Load existing messages
+        const mr = await fetch(`/api/conversations?id=${convoId}`);
+        const mdata = await mr.json();
+        if (mdata.messages?.length > 0) {
+          setDMsgs(mdata.messages.map(m => ({
+            id: m.id,
+            role: m.sender_type === "user" ? "user" : "bot",
+            text: m.content,
+            time: m.created_at,
+          })));
+          // Mark read
+          fetch("/api/conversations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "mark_read", conversation_id: convoId }),
+          });
+          return;
+        }
+      }
+
+      // New conversation — send greeting
+      const g=flow==="testDrive"
+        ?`Hey! 👋 Great choice on the ${v.year} ${v.make} ${v.model}. I've got slots Mon 10am, Tue 2pm, Wed 11am, Thu 3:30pm. Which works?`
+        :`Hey! 👋 Thanks for your interest in the ${v.year} ${v.make} ${v.model} at ${fmt(v.price)}. How can I help?`;
+      const qr=flow==="testDrive"?["Mon 10am","Tue 2pm","Wed 11am","Thu 3:30pm"]:["Is it available?","📅 Test drive","💳 Finance options","🔄 Part exchange"];
+      setDMsgs([{role:"bot",text:g,quickReplies:qr}]);
+
+      // Save greeting to DB
+      fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "send", conversation_id: convoId, sender_type: "dealer", text: g }),
+      });
+    } catch(e) {
+      console.warn("Failed to create conversation:", e);
+      // Fallback to local-only
+      const g=flow==="testDrive"
+        ?`Hey! 👋 Great choice on the ${v.year} ${v.make} ${v.model}. I've got slots Mon 10am, Tue 2pm, Wed 11am, Thu 3:30pm. Which works?`
+        :`Hey! 👋 Thanks for your interest in the ${v.year} ${v.make} ${v.model} at ${fmt(v.price)}. How can I help?`;
+      const qr=flow==="testDrive"?["Mon 10am","Tue 2pm","Wed 11am","Thu 3:30pm"]:["Is it available?","📅 Test drive","💳 Finance options","🔄 Part exchange"];
+      setDMsgs([{role:"bot",text:g,quickReplies:qr}]);
+    }
   };
 
   const sendDMsg = async (text) => {
     if(!text?.trim())return;
     const ctx=dCtx, v=ctx?.vehicle||V[0], dl=ctx?.dealer||D[0];
-    setDMsgs(p=>[...p,{role:"user",text:text.trim()}]); setDIn(""); setDTyping(true);
+    const trimmed = text.trim();
+    setDMsgs(p=>[...p,{role:"user",text:trimmed}]); setDIn(""); setDTyping(true);
     const fin=calcFin(v.price);
+
+    // Save user message to DB
+    if (activeConvoId) {
+      fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "send", conversation_id: activeConvoId, sender_type: "user", text: trimmed }),
+      });
+    }
 
     // Fallback responses
     const fb=()=>{const dq=text.toLowerCase();
@@ -1152,17 +1251,30 @@ THE VEHICLE:
     if(!merged.length)merged.push({role:"user",content:text});
     merged[0].content = dealerPrompt + vehicleContext + "\n\n---\nCustomer: " + merged[0].content;
 
+    let respText;
     try {
       const r = await callAI(merged, 300);
-      const resp = {role:"bot", text: r || fb()};
-      if(/test.?drive|slot|book|view/i.test(text.toLowerCase()) && !/mon|tue|wed|thu|sat/i.test(text.toLowerCase()))
-        resp.quickReplies = ["Mon 10am","Tue 2pm","Wed 11am","Thu 3:30pm","Sat 10am"];
-      setDMsgs(p=>[...p,resp]);
+      respText = r || fb();
     } catch(e) {
-      const resp = {role:"bot", text: fb()};
-      setDMsgs(p=>[...p,resp]);
+      respText = fb();
     }
+
+    const resp = {role:"bot", text: respText};
+    if(/test.?drive|slot|book|view/i.test(text.toLowerCase()) && !/mon|tue|wed|thu|sat/i.test(text.toLowerCase()))
+      resp.quickReplies = ["Mon 10am","Tue 2pm","Wed 11am","Thu 3:30pm","Sat 10am"];
+    setDMsgs(p=>[...p,resp]);
     setDTyping(false);
+
+    // Save dealer response to DB
+    if (activeConvoId) {
+      fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "send", conversation_id: activeConvoId, sender_type: "dealer", text: respText }),
+      });
+      // Refresh conversations list
+      loadConversations();
+    }
   };
 
   // Action functions
@@ -1200,12 +1312,13 @@ THE VEHICLE:
       <div className="nav-left">
         <div className="nav-logo" onClick={()=>{setPage("home");setSel(null);}}>Car<span>GPT</span></div>
         <div className="nav-links">
-          {[{key:"home",label:"Home"},{key:"search",label:"Browse"},{key:"favourites",label:"Favourites"},{key:"garage",label:"My Garage"}].map(n =>
+          {[{key:"home",label:"Home"},{key:"search",label:"Browse"},{key:"favourites",label:"Favourites"},{key:"messages",label:"Messages"},{key:"garage",label:"My Garage"}].map(n =>
             <button key={n.key} className={`nav-link ${page===n.key && !sel?"active":""}`}
               onClick={()=>{
-                if((n.key==="favourites"||n.key==="garage") && !user){ setAuthModal("login"); return; }
+                if((n.key==="favourites"||n.key==="garage"||n.key==="messages") && !user){ setAuthModal("login"); return; }
+                if(n.key==="messages") loadConversations();
                 setPage(n.key);setSel(null);
-              }}>{n.label}</button>
+              }}>{n.label}{n.key==="messages"&&conversations.filter(c=>c.user_unread_count>0).length>0&&<span style={{width:7,height:7,borderRadius:"50%",background:"#DC2626",display:"inline-block",marginLeft:4,verticalAlign:"middle"}}/>}</button>
           )}
           <button className={`nav-link ${showTools?"active":""}`} onClick={()=>setShowTools(!showTools)}>Tools ▾</button>
         </div>
@@ -1465,6 +1578,89 @@ THE VEHICLE:
             <div className="text-sm text-muted">Tap the heart on any car to save it here</div>
           </div>
         }
+      </div>
+    );
+  };
+
+  // ═══ RENDER: MESSAGES ═══
+  const MessagesPage = () => {
+    if (!user) return (
+      <div className="section" style={{paddingBottom:80,textAlign:"center"}}>
+        <div style={{padding:"60px 20px"}}>
+          <div style={{fontSize:48,marginBottom:16}}>💬</div>
+          <div className="text-lg font-extra mb-2">Your messages</div>
+          <div className="text-sm text-muted mb-4">Sign in to view your dealer conversations.</div>
+          <button className="btn btn-primary" onClick={()=>setAuthModal("login")}>Sign In</button>
+        </div>
+      </div>
+    );
+    return (
+      <div className="section" style={{paddingBottom:80}}>
+        <div className="section-head" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div className="section-title">💬 Messages</div>
+          <div className="text-sm text-muted">{conversations.length} conversation{conversations.length!==1?"s":""}</div>
+        </div>
+        {conversations.length === 0 ? (
+          <div className="text-center" style={{padding:"60px 20px"}}>
+            <div style={{fontSize:48,marginBottom:16}}>📭</div>
+            <div className="text-md font-bold mb-2">No conversations yet</div>
+            <div className="text-sm text-muted mb-4">When you message a dealer about a car, your conversations will appear here.</div>
+            <button className="btn btn-primary" onClick={()=>setPage("search")}>Browse Cars</button>
+          </div>
+        ) : (
+          <div>
+            {conversations.map(c => {
+              const dl = D.find(d=>d.id===c.dealer_id) || D[0];
+              const v = c.vehicle_id ? V.find(x=>x.id===c.vehicle_id) : null;
+              const timeAgo = c.updated_at ? (() => {
+                const diff = Date.now() - new Date(c.updated_at).getTime();
+                if (diff < 60000) return "just now";
+                if (diff < 3600000) return `${Math.floor(diff/60000)}m ago`;
+                if (diff < 86400000) return `${Math.floor(diff/3600000)}h ago`;
+                return `${Math.floor(diff/86400000)}d ago`;
+              })() : "";
+              return (
+                <div key={c.id} onClick={async ()=>{
+                  setDCtx(v ? {vehicleId:v.id,flow:"general",vehicle:v,dealer:dl} : {vehicleId:null,flow:"general",vehicle:V[0],dealer:dl});
+                  setActiveConvoId(c.id);
+                  setInboxOpen(false);
+                  setActiveModal("dealer-chat");
+                  // Load messages
+                  try {
+                    const mr = await fetch(`/api/conversations?id=${c.id}`);
+                    const data = await mr.json();
+                    if(data.messages) setDMsgs(data.messages.map(m=>({id:m.id,role:m.sender_type==="user"?"user":"bot",text:m.content,time:m.created_at})));
+                  } catch{}
+                  // Mark read
+                  fetch("/api/conversations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"mark_read",conversation_id:c.id})});
+                }} className="card" style={{
+                  display:"flex",gap:14,padding:16,marginBottom:8,cursor:"pointer",
+                  border:c.user_unread_count>0?"1.5px solid var(--primary)":"1px solid var(--border-light)",
+                  background:c.user_unread_count>0?"rgba(66,133,244,0.03)":"white"
+                }}>
+                  <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,var(--primary),#1a5cd6)",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontWeight:700,fontSize:18,flexShrink:0}}>
+                    {dl?.name?.charAt(0)||"D"}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
+                      <div className="text-sm font-bold">{dl?.name||"Dealer"}</div>
+                      <span className="text-xs text-muted">{timeAgo}</span>
+                    </div>
+                    {v && <div className="text-xs" style={{color:"var(--primary)",fontWeight:600,marginBottom:2}}>{v.year} {v.make} {v.model} · {fmt(v.price)}</div>}
+                    <div className="text-xs text-muted" style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",opacity:0.7}}>
+                      {c.last_message_preview || "Start of conversation"}
+                    </div>
+                  </div>
+                  {c.user_unread_count > 0 && (
+                    <div style={{width:24,height:24,borderRadius:"50%",background:"var(--primary)",color:"white",fontSize:11,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,alignSelf:"center"}}>
+                      {c.user_unread_count}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   };
@@ -2190,16 +2386,102 @@ THE VEHICLE:
 
       // DEALER CHAT
       case "dealer-chat":
-        return <SlideOver show={true} onClose={()=>{closeModal();setShowDChat(false);}} title={dCtx?`💬 ${dCtx.dealer?.name}`:"💬 Dealer"}>
-          <div style={{minHeight:300}}>
-            {dMsgs.map((m,i)=><div key={i} className={`chat-msg ${m.role==="user"?"user":""} fade-in`} style={{marginBottom:8}}>
-              <div className="chat-bubble">{m.text}</div>
-              {m.quickReplies&&<div className="chat-quick-replies">{m.quickReplies.map((qr,j)=><button key={j} className="chat-qr" onClick={()=>sendDMsg(qr)}>{qr}</button>)}</div>}
-            </div>)}
-            {dTyping&&<div className="chat-msg fade-in"><div className="chat-bubble"><div className="typing-dots"><div className="typing-dot"/><div className="typing-dot"/><div className="typing-dot"/></div></div></div>}
-            <div ref={dRef}/>
+        return <SlideOver show={true} onClose={()=>{closeModal();setShowDChat(false);setActiveConvoId(null);setInboxOpen(false);}} title={inboxOpen?"💬 Messages":dCtx?`💬 ${dCtx.dealer?.name}`:"💬 Dealer"}>
+          {/* Inbox Toggle */}
+          <div style={{display:"flex",gap:8,marginBottom:12}}>
+            <button className={`filter-chip ${!inboxOpen?"active":""}`} onClick={()=>setInboxOpen(false)} style={{flex:1,textAlign:"center"}}>Chat</button>
+            <button className={`filter-chip ${inboxOpen?"active":""}`} onClick={()=>{setInboxOpen(true);loadConversations();}} style={{flex:1,textAlign:"center",position:"relative"}}>
+              Inbox {conversations.filter(c=>c.user_unread_count>0).length>0 && <span style={{width:8,height:8,borderRadius:"50%",background:"#DC2626",display:"inline-block",marginLeft:4}}/>}
+            </button>
           </div>
-          <div className="flex gap-2 mt-3"><input className="input flex-1" value={dIn} onChange={e=>setDIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")sendDMsg(dIn);}} placeholder="Type a message..."/><button className="btn btn-primary" onClick={()=>sendDMsg(dIn)}>Send</button></div>
+
+          {inboxOpen ? (
+            /* ── INBOX VIEW ── */
+            <div>
+              {conversations.length === 0 ? (
+                <div className="text-center" style={{padding:40}}>
+                  <div style={{fontSize:36,marginBottom:8}}>💬</div>
+                  <div className="text-sm text-muted">No conversations yet. Message a dealer to get started.</div>
+                </div>
+              ) : conversations.map(c => {
+                const dl = D.find(d=>d.id===c.dealer_id) || D[0];
+                const v = c.vehicle_id ? V.find(x=>x.id===c.vehicle_id) : null;
+                const timeAgo = c.updated_at ? (() => {
+                  const diff = Date.now() - new Date(c.updated_at).getTime();
+                  if (diff < 60000) return "just now";
+                  if (diff < 3600000) return `${Math.floor(diff/60000)}m ago`;
+                  if (diff < 86400000) return `${Math.floor(diff/3600000)}h ago`;
+                  return `${Math.floor(diff/86400000)}d ago`;
+                })() : "";
+                return (
+                  <div key={c.id} onClick={async ()=>{
+                    setInboxOpen(false);
+                    if(v) setDCtx({vehicleId:v.id,flow:"general",vehicle:v,dealer:dl});
+                    setActiveConvoId(c.id);
+                    // Load messages
+                    const mr = await fetch(`/api/conversations?id=${c.id}`);
+                    const data = await mr.json();
+                    if(data.messages) setDMsgs(data.messages.map(m=>({id:m.id,role:m.sender_type==="user"?"user":"bot",text:m.content,time:m.created_at})));
+                    // Mark read
+                    fetch("/api/conversations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"mark_read",conversation_id:c.id})});
+                  }} style={{
+                    display:"flex",gap:12,padding:"14px 0",borderBottom:"1px solid var(--border-light)",
+                    cursor:"pointer",transition:"background 0.15s",alignItems:"center"
+                  }}>
+                    <div style={{width:44,height:44,borderRadius:12,background:"linear-gradient(135deg,var(--primary),#1a5cd6)",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontWeight:700,fontSize:15,flexShrink:0}}>
+                      {dl?.name?.charAt(0)||"D"}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <div className="text-sm font-bold" style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dl?.name||"Dealer"}</div>
+                        <span className="text-xs text-muted" style={{flexShrink:0,marginLeft:8}}>{timeAgo}</span>
+                      </div>
+                      {v && <div className="text-xs text-muted">{v.year} {v.make} {v.model}</div>}
+                      <div className="text-xs text-muted" style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:2,opacity:0.7}}>
+                        {c.last_message_preview || "No messages yet"}
+                      </div>
+                    </div>
+                    {c.user_unread_count > 0 && <div style={{width:20,height:20,borderRadius:"50%",background:"var(--primary)",color:"white",fontSize:10,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{c.user_unread_count}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* ── CHAT VIEW ── */
+            <>
+              {/* Vehicle context bar */}
+              {dCtx?.vehicle && (
+                <div style={{display:"flex",gap:10,padding:"10px 12px",background:"#F8F9FA",borderRadius:10,marginBottom:12,alignItems:"center"}}>
+                  <div style={{width:48,height:36,borderRadius:6,overflow:"hidden",background:"#E5E7EB",flexShrink:0}}>
+                    <img src={carImg(dCtx.vehicle.make,dCtx.vehicle.model,dCtx.vehicle.year)} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div className="text-xs font-bold" style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dCtx.vehicle.year} {dCtx.vehicle.make} {dCtx.vehicle.model}</div>
+                    <div className="text-xs text-muted">{fmt(dCtx.vehicle.price)} · {fmtMi(dCtx.vehicle.mileage)}</div>
+                  </div>
+                  <div className="text-xs" style={{color:"#059669",fontWeight:600}}>● Online</div>
+                </div>
+              )}
+              <div style={{minHeight:300,maxHeight:400,overflowY:"auto"}}>
+                {dMsgs.map((m,i)=>{
+                  const msgTime = m.time ? new Date(m.time).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}) : "";
+                  return (
+                    <div key={m.id||i} className={`chat-msg ${m.role==="user"?"user":""} fade-in`} style={{marginBottom:8}}>
+                      <div className="chat-bubble">{m.text}</div>
+                      {msgTime && <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2,textAlign:m.role==="user"?"right":"left",opacity:0.6}}>{msgTime}</div>}
+                      {m.quickReplies&&<div className="chat-quick-replies">{m.quickReplies.map((qr,j)=><button key={j} className="chat-qr" onClick={()=>sendDMsg(qr)}>{qr}</button>)}</div>}
+                    </div>
+                  );
+                })}
+                {dTyping&&<div className="chat-msg fade-in"><div className="chat-bubble"><div className="typing-dots"><div className="typing-dot"/><div className="typing-dot"/><div className="typing-dot"/></div></div></div>}
+                <div ref={dRef}/>
+              </div>
+              <div className="flex gap-2 mt-3">
+                <input className="input flex-1" value={dIn} onChange={e=>setDIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")sendDMsg(dIn);}} placeholder="Type a message..."/>
+                <button className="btn btn-primary" onClick={()=>sendDMsg(dIn)}>Send</button>
+              </div>
+            </>
+          )}
         </SlideOver>;
 
       // SIMPLE PLACEHOLDER MODALS FOR REMAINING TOOLS
@@ -2255,6 +2537,7 @@ THE VEHICLE:
             page==="home" ? HomePage() :
             page==="search" ? SearchPage() :
             page==="favourites" ? FavouritesPage() :
+            page==="messages" ? MessagesPage() :
             page==="garage" ? GaragePage() :
             page==="profile" ? ProfilePage() : HomePage()
           }
