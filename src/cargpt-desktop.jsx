@@ -2225,130 +2225,23 @@ THE VEHICLE:
   const [aName, setAName] = useState("");
   const [showPass, setShowPass] = useState(false);
 
-  const AuthModal = () => {
-    if (!authModal) return null;
+  const authSubmit = async () => {
     const isSignup = authModal === "signup";
+    if (isSignup) {
+      await authAction("signup", aEmail, aPass, aName);
+    } else {
+      await authAction("login", aEmail, aPass);
+    }
+  };
 
-    const handleSubmit = async () => {
-      if (isSignup) {
-        await authAction("signup", aEmail, aPass, aName);
-      } else {
-        await authAction("login", aEmail, aPass);
-      }
-    };
-
-    return (
-      <div className="modal-overlay" style={{zIndex:10000}} onClick={()=>{setAuthModal(null);setAuthError("");setAEmail("");setAPass("");setAName("");}}>
-        <div style={{
-          background:"white",borderRadius:20,width:"100%",maxWidth:440,padding:0,
-          boxShadow:"0 25px 60px rgba(0,0,0,0.3)",overflow:"hidden",animation:"slideUp 0.3s ease"
-        }} onClick={e=>e.stopPropagation()}>
-          {/* Header */}
-          <div style={{padding:"32px 32px 0",textAlign:"center"}}>
-            <div style={{fontSize:28,fontWeight:800,marginBottom:4}}>
-              Car<span style={{color:"var(--primary)"}}>GPT</span>
-            </div>
-            <div style={{fontSize:18,fontWeight:700,marginTop:12}}>
-              {isSignup ? "Create your account" : "Welcome back"}
-            </div>
-            <div style={{fontSize:14,color:"var(--text-muted)",marginTop:4}}>
-              {isSignup ? "Join 50,000+ smart car buyers" : "Log in to access your saved cars"}
-            </div>
-          </div>
-
-          {/* Form */}
-          <div style={{padding:"24px 32px 32px"}}>
-            {isSignup && (
-              <div style={{marginBottom:16}}>
-                <label style={{display:"block",fontSize:13,fontWeight:600,marginBottom:6,color:"var(--text-secondary)"}}>Full name</label>
-                <input
-                  type="text" value={aName} onChange={e=>setAName(e.target.value)}
-                  placeholder="John Smith"
-                  style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1.5px solid var(--border-light)",fontSize:15,outline:"none",transition:"border 0.2s",boxSizing:"border-box"}}
-                  onFocus={e=>e.target.style.borderColor="var(--primary)"}
-                  onBlur={e=>e.target.style.borderColor="var(--border-light)"}
-                />
-              </div>
-            )}
-            <div style={{marginBottom:16}}>
-              <label style={{display:"block",fontSize:13,fontWeight:600,marginBottom:6,color:"var(--text-secondary)"}}>Email address</label>
-              <input
-                type="email" value={aEmail} onChange={e=>setAEmail(e.target.value)}
-                placeholder="you@example.com"
-                style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1.5px solid var(--border-light)",fontSize:15,outline:"none",transition:"border 0.2s",boxSizing:"border-box"}}
-                onFocus={e=>e.target.style.borderColor="var(--primary)"}
-                onBlur={e=>e.target.style.borderColor="var(--border-light)"}
-                onKeyDown={e=>{if(e.key==="Enter") handleSubmit();}}
-              />
-            </div>
-            <div style={{marginBottom:20}}>
-              <label style={{display:"block",fontSize:13,fontWeight:600,marginBottom:6,color:"var(--text-secondary)"}}>Password</label>
-              <div style={{position:"relative"}}>
-                <input
-                  type={showPass?"text":"password"} value={aPass} onChange={e=>setAPass(e.target.value)}
-                  placeholder={isSignup?"Create a password (min 6 chars)":"Enter your password"}
-                  style={{width:"100%",padding:"12px 44px 12px 14px",borderRadius:10,border:"1.5px solid var(--border-light)",fontSize:15,outline:"none",transition:"border 0.2s",boxSizing:"border-box"}}
-                  onFocus={e=>e.target.style.borderColor="var(--primary)"}
-                  onBlur={e=>e.target.style.borderColor="var(--border-light)"}
-                  onKeyDown={e=>{if(e.key==="Enter") handleSubmit();}}
-                />
-                <button onClick={()=>setShowPass(!showPass)} style={{
-                  position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",
-                  background:"none",border:"none",cursor:"pointer",fontSize:16,color:"var(--text-muted)"
-                }}>{showPass?"🙈":"👁️"}</button>
-              </div>
-            </div>
-
-            {authError && (
-              <div style={{
-                padding:"10px 14px",borderRadius:10,marginBottom:16,fontSize:13,fontWeight:500,
-                background:"#FEF2F2",color:"#DC2626",border:"1px solid #FECACA"
-              }}>⚠️ {authError}</div>
-            )}
-
-            <button
-              onClick={handleSubmit}
-              disabled={authBusy || !aEmail || !aPass || (isSignup && !aName)}
-              style={{
-                width:"100%",padding:"14px",borderRadius:12,border:"none",
-                background: (authBusy || !aEmail || !aPass) ? "#E5E7EB" : "var(--primary)",
-                color: (authBusy || !aEmail || !aPass) ? "#9CA3AF" : "white",
-                fontSize:15,fontWeight:700,cursor: (authBusy || !aEmail || !aPass) ? "not-allowed" : "pointer",
-                transition:"all 0.2s"
-              }}
-            >
-              {authBusy ? "Please wait..." : isSignup ? "Create account" : "Log in"}
-            </button>
-
-            {/* Divider */}
-            <div style={{display:"flex",alignItems:"center",gap:12,margin:"20px 0"}}>
-              <div style={{flex:1,height:1,background:"var(--border-light)"}}/>
-              <span style={{fontSize:12,color:"var(--text-muted)"}}>or</span>
-              <div style={{flex:1,height:1,background:"var(--border-light)"}}/>
-            </div>
-
-            {/* Toggle */}
-            <div style={{textAlign:"center",fontSize:14}}>
-              <span style={{color:"var(--text-muted)"}}>
-                {isSignup ? "Already have an account? " : "Don't have an account? "}
-              </span>
-              <button
-                onClick={()=>{setAuthModal(isSignup?"login":"signup");setAuthError("");}}
-                style={{background:"none",border:"none",color:"var(--primary)",fontWeight:700,cursor:"pointer",fontSize:14}}
-              >
-                {isSignup ? "Log in" : "Sign up free"}
-              </button>
-            </div>
-
-            {isSignup && (
-              <div style={{textAlign:"center",fontSize:11,color:"var(--text-muted)",marginTop:12}}>
-                By signing up, you agree to CarGPT's Terms of Service and Privacy Policy
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
+  const SB_URL = "https://ugknhpkvjlaixzopckxr.supabase.co";
+  const googleLogin = () => {
+    const redirect = window.location.origin + "/api/auth/callback";
+    window.location.href = `${SB_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirect)}`;
+  };
+  const appleLogin = () => {
+    const redirect = window.location.origin + "/api/auth/callback";
+    window.location.href = `${SB_URL}/auth/v1/authorize?provider=apple&redirect_to=${encodeURIComponent(redirect)}`;
   };
 
   // ═══ MAIN RENDER ═══
@@ -2415,8 +2308,141 @@ THE VEHICLE:
       {/* Active Modal */}
       {renderModalContent()}
 
-      {/* Auth Modal */}
-      <AuthModal/>
+      {/* Auth Modal — inlined to prevent re-mount on keystroke */}
+      {authModal && (
+        <div className="modal-overlay" style={{zIndex:10000}} onClick={()=>{setAuthModal(null);setAuthError("");setAEmail("");setAPass("");setAName("");}}>
+          <div style={{
+            background:"white",borderRadius:20,width:"100%",maxWidth:440,padding:0,
+            boxShadow:"0 25px 60px rgba(0,0,0,0.3)",overflow:"hidden",animation:"slideUp 0.3s ease"
+          }} onClick={e=>e.stopPropagation()}>
+            {/* Header */}
+            <div style={{padding:"32px 32px 0",textAlign:"center"}}>
+              <div style={{fontSize:28,fontWeight:800,marginBottom:4}}>
+                Car<span style={{color:"var(--primary)"}}>GPT</span>
+              </div>
+              <div style={{fontSize:18,fontWeight:700,marginTop:12}}>
+                {authModal==="signup" ? "Create your account" : "Welcome back"}
+              </div>
+              <div style={{fontSize:14,color:"var(--text-muted)",marginTop:4}}>
+                {authModal==="signup" ? "Join 50,000+ smart car buyers" : "Log in to access your saved cars"}
+              </div>
+            </div>
+
+            <div style={{padding:"24px 32px 32px"}}>
+              {/* Social OAuth Buttons */}
+              <button onClick={googleLogin} style={{
+                width:"100%",padding:"12px",borderRadius:12,border:"1.5px solid var(--border-light)",
+                background:"white",fontSize:14,fontWeight:600,cursor:"pointer",display:"flex",
+                alignItems:"center",justifyContent:"center",gap:10,marginBottom:10,transition:"all 0.2s"
+              }}
+                onMouseEnter={e=>e.currentTarget.style.background="#F9FAFB"}
+                onMouseLeave={e=>e.currentTarget.style.background="white"}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                Continue with Google
+              </button>
+
+              <button onClick={appleLogin} style={{
+                width:"100%",padding:"12px",borderRadius:12,border:"1.5px solid var(--border-light)",
+                background:"#000",color:"white",fontSize:14,fontWeight:600,cursor:"pointer",display:"flex",
+                alignItems:"center",justifyContent:"center",gap:10,marginBottom:16,transition:"all 0.2s"
+              }}>
+                <svg width="16" height="18" viewBox="0 0 16 20" fill="white"><path d="M13.54 10.68c-.02-2.17 1.77-3.22 1.85-3.27-1.01-1.47-2.58-1.67-3.14-1.7-1.33-.14-2.61.79-3.28.79-.68 0-1.73-.77-2.84-.75-1.46.02-2.81.85-3.56 2.16-1.52 2.64-.39 6.55 1.09 8.7.73 1.05 1.59 2.23 2.73 2.19 1.09-.05 1.51-.71 2.83-.71 1.32 0 1.7.71 2.84.68 1.18-.02 1.93-1.07 2.65-2.13.83-1.22 1.18-2.4 1.2-2.46-.03-.01-2.3-.88-2.32-3.5zM11.35 3.95c.6-.74 1.01-1.76.9-2.78-.87.04-1.92.58-2.54 1.31-.56.65-1.05 1.69-.92 2.68.97.08 1.96-.49 2.56-1.21z"/></svg>
+                Continue with Apple
+              </button>
+
+              {/* Divider */}
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+                <div style={{flex:1,height:1,background:"var(--border-light)"}}/>
+                <span style={{fontSize:12,color:"var(--text-muted)"}}>or continue with email</span>
+                <div style={{flex:1,height:1,background:"var(--border-light)"}}/>
+              </div>
+
+              {/* Email/Password Form */}
+              {authModal==="signup" && (
+                <div style={{marginBottom:16}}>
+                  <label style={{display:"block",fontSize:13,fontWeight:600,marginBottom:6,color:"var(--text-secondary)"}}>Full name</label>
+                  <input
+                    type="text" value={aName} onChange={e=>setAName(e.target.value)}
+                    placeholder="John Smith"
+                    style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1.5px solid var(--border-light)",fontSize:15,outline:"none",transition:"border 0.2s",boxSizing:"border-box"}}
+                    onFocus={e=>e.target.style.borderColor="var(--primary)"}
+                    onBlur={e=>e.target.style.borderColor="var(--border-light)"}
+                  />
+                </div>
+              )}
+              <div style={{marginBottom:16}}>
+                <label style={{display:"block",fontSize:13,fontWeight:600,marginBottom:6,color:"var(--text-secondary)"}}>Email address</label>
+                <input
+                  type="email" value={aEmail} onChange={e=>setAEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1.5px solid var(--border-light)",fontSize:15,outline:"none",transition:"border 0.2s",boxSizing:"border-box"}}
+                  onFocus={e=>e.target.style.borderColor="var(--primary)"}
+                  onBlur={e=>e.target.style.borderColor="var(--border-light)"}
+                  onKeyDown={e=>{if(e.key==="Enter") authSubmit();}}
+                />
+              </div>
+              <div style={{marginBottom:20}}>
+                <label style={{display:"block",fontSize:13,fontWeight:600,marginBottom:6,color:"var(--text-secondary)"}}>Password</label>
+                <div style={{position:"relative"}}>
+                  <input
+                    type={showPass?"text":"password"} value={aPass} onChange={e=>setAPass(e.target.value)}
+                    placeholder={authModal==="signup"?"Create a password (min 6 chars)":"Enter your password"}
+                    style={{width:"100%",padding:"12px 44px 12px 14px",borderRadius:10,border:"1.5px solid var(--border-light)",fontSize:15,outline:"none",transition:"border 0.2s",boxSizing:"border-box"}}
+                    onFocus={e=>e.target.style.borderColor="var(--primary)"}
+                    onBlur={e=>e.target.style.borderColor="var(--border-light)"}
+                    onKeyDown={e=>{if(e.key==="Enter") authSubmit();}}
+                  />
+                  <button onClick={()=>setShowPass(!showPass)} style={{
+                    position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",
+                    background:"none",border:"none",cursor:"pointer",fontSize:16,color:"var(--text-muted)"
+                  }}>{showPass?"🙈":"👁️"}</button>
+                </div>
+              </div>
+
+              {authError && (
+                <div style={{
+                  padding:"10px 14px",borderRadius:10,marginBottom:16,fontSize:13,fontWeight:500,
+                  background:"#FEF2F2",color:"#DC2626",border:"1px solid #FECACA"
+                }}>⚠️ {authError}</div>
+              )}
+
+              <button
+                onClick={authSubmit}
+                disabled={authBusy || !aEmail || !aPass || (authModal==="signup" && !aName)}
+                style={{
+                  width:"100%",padding:"14px",borderRadius:12,border:"none",
+                  background: (authBusy || !aEmail || !aPass) ? "#E5E7EB" : "var(--primary)",
+                  color: (authBusy || !aEmail || !aPass) ? "#9CA3AF" : "white",
+                  fontSize:15,fontWeight:700,cursor: (authBusy || !aEmail || !aPass) ? "not-allowed" : "pointer",
+                  transition:"all 0.2s"
+                }}
+              >
+                {authBusy ? "Please wait..." : authModal==="signup" ? "Create account" : "Log in"}
+              </button>
+
+              {/* Toggle login/signup */}
+              <div style={{textAlign:"center",fontSize:14,marginTop:20}}>
+                <span style={{color:"var(--text-muted)"}}>
+                  {authModal==="signup" ? "Already have an account? " : "Don't have an account? "}
+                </span>
+                <button
+                  onClick={()=>{setAuthModal(authModal==="signup"?"login":"signup");setAuthError("");}}
+                  style={{background:"none",border:"none",color:"var(--primary)",fontWeight:700,cursor:"pointer",fontSize:14}}
+                >
+                  {authModal==="signup" ? "Log in" : "Sign up free"}
+                </button>
+              </div>
+
+              {authModal==="signup" && (
+                <div style={{textAlign:"center",fontSize:11,color:"var(--text-muted)",marginTop:12}}>
+                  By signing up, you agree to CarGPT's Terms of Service and Privacy Policy
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Review Modal */}
       {reviewModal && (
