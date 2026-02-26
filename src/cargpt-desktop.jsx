@@ -2243,20 +2243,29 @@ THE VEHICLE:
           <option value="Automatic">Automatic</option>
           <option value="Manual">Manual</option>
         </Sel>
+        <Sel value={fMiles} onChange={setFMiles} hasValue={fMiles!=="All"}>
+          <option value="All">Any mileage</option>
+          <option value="u10">Under 10,000</option>
+          <option value="u20">Under 20,000</option>
+          <option value="u30">Under 30,000</option>
+          <option value="u50">Under 50,000</option>
+        </Sel>
+        <Sel value={fYear} onChange={setFYear} hasValue={fYear!=="All"}>
+          <option value="All">Any year</option>
+          <option value="2024+">2024 onwards</option>
+          <option value="2022+">2022 onwards</option>
+          <option value="2020+">2020 onwards</option>
+        </Sel>
+        <Sel value={fColour} onChange={setFColour} hasValue={fColour!=="All"}>
+          <option value="All">Any colour</option>
+          {[...new Set(V.map(v=>v.colour))].sort().map(c=><option key={c} value={c}>{c}</option>)}
+        </Sel>
+        <Sel value={fDoors} onChange={v=>setFDoors(v)} hasValue={fDoors!=="All"}>
+          <option value="All">Any doors</option>
+          <option value="3">3 door</option>
+          <option value="5">5 door</option>
+        </Sel>
         {showMoreFilters && <>
-          <Sel value={fMiles} onChange={setFMiles} hasValue={fMiles!=="All"}>
-            <option value="All">Any mileage</option>
-            <option value="u10">Under 10,000</option>
-            <option value="u20">Under 20,000</option>
-            <option value="u30">Under 30,000</option>
-            <option value="u50">Under 50,000</option>
-          </Sel>
-          <Sel value={fYear} onChange={setFYear} hasValue={fYear!=="All"}>
-            <option value="All">Any year</option>
-            <option value="2024+">2024 onwards</option>
-            <option value="2022+">2022 onwards</option>
-            <option value="2020+">2020 onwards</option>
-          </Sel>
           <Sel value={fInsurance} onChange={setFInsurance} hasValue={fInsurance!=="All"}>
             <option value="All">Any insurance</option>
             <option value="low">Low (group 1-15)</option>
@@ -2268,15 +2277,6 @@ THE VEHICLE:
             <option value="yes">ULEZ compliant</option>
             <option value="no">Not ULEZ</option>
           </Sel>
-          <Sel value={fColour} onChange={setFColour} hasValue={fColour!=="All"}>
-            <option value="All">Any colour</option>
-            {[...new Set(V.map(v=>v.colour))].sort().map(c=><option key={c} value={c}>{c}</option>)}
-          </Sel>
-          <Sel value={fDoors} onChange={v=>setFDoors(v)} hasValue={fDoors!=="All"}>
-            <option value="All">Any doors</option>
-            <option value="3">3 door</option>
-            <option value="5">5 door</option>
-          </Sel>
         </>}
       </div>
 
@@ -2286,7 +2286,7 @@ THE VEHICLE:
           background:"none",border:"none",cursor:"pointer",fontSize:13,fontWeight:600,
           color:"var(--primary)",padding:0,display:"flex",alignItems:"center",gap:4
         }}>
-          {showMoreFilters ? "− Fewer filters" : "+ More filters"}
+          {showMoreFilters ? "− Fewer filters" : "+ Insurance, ULEZ"}
         </button>
         {activeFilterCount > 0 && (
           <button onClick={clearAllFilters} style={{
