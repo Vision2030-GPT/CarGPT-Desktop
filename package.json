@@ -1,5 +1,6 @@
 {
-  "name": "my-project",
+  "name": "cargpt-consumer",
+  "private": true,
   "version": "1.0.0",
   "type": "module",
   "scripts": {
@@ -8,13 +9,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "papaparse": "^5.4.1",
-    "lucide-react": "^0.263.1"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.2.0",
-    "vite": "^5.0.0"
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^6.0.0"
   }
 }
