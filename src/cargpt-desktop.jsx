@@ -19,10 +19,23 @@ const FALLBACK_D = [
 {id:3,name:"Electric Avenue Cars",location:"London, SW19",rating:4.9,reviews:156,responseTime:"< 10 min",trustScore:97},
 {id:4,name:"South London Motors",location:"Croydon, CR0",rating:4.5,reviews:287,responseTime:"< 20 min",trustScore:85},
 ];
-const NOTIFS = [
-{id:1,type:"price_drop",title:"Price dropped!",desc:"BMW 320d M Sport now £22,495",time:"2h ago",read:false},
-{id:2,type:"new_match",title:"New match found",desc:"2021 Audi A3 S Line matches your search",time:"4h ago",read:false},
-{id:3,type:"agent",title:"Deal Hunter found something",desc:"Great deal on Golf GTI — £1,200 below market",time:"1d ago",read:true},
+const NOTIFS_SEED = [
+{id:1,type:"price_drop",title:"Price dropped!",desc:"BMW 320d M Sport now £22,495 (was £23,995)",time:"2h ago",read:false,vehicleIdx:1,icon:"🔻",color:"#DC2626"},
+{id:2,type:"new_match",title:"New match found",desc:"2021 Audi A3 S Line matches 'Hatchback under £25k'",time:"4h ago",read:false,vehicleIdx:4,icon:"🆕",color:"#2563EB"},
+{id:3,type:"agent",title:"Deal Hunter found something",desc:"Great deal on Golf GTI — £1,200 below market",time:"1d ago",read:true,icon:"🤖",color:"#7C3AED"},
+{id:4,type:"mot_reminder",title:"MOT due in 31 days",desc:"Your VW Golf (AB21 CDE) MOT expires 14 Mar 2026",time:"1d ago",read:false,icon:"📋",color:"#D97706"},
+{id:5,type:"saved_search",title:"3 new cars match your search",desc:"'Electric under £35k' — Tesla, MG4 & Polestar listed today",time:"6h ago",read:false,icon:"🔔",color:"#059669"},
+{id:6,type:"dealer_response",title:"Dealer replied",desc:"Hilton Car Supermarket responded to your enquiry",time:"3h ago",read:false,icon:"💬",color:"#2563EB"},
+{id:7,type:"price_drop",title:"Watching: Kia Sportage",desc:"Price reduced £500 to £31,495 — 3 days on market",time:"5h ago",read:true,vehicleIdx:7,icon:"🔻",color:"#DC2626"},
+];
+const REVIEWS_SEED = [
+{id:1,dealerId:1,author:"James T.",rating:5,date:"2026-01-15",verified:true,text:"Brilliant experience. Smooth process from viewing to collection. No pressure at all and the car was exactly as described. Would 100% buy from Hilton again."},
+{id:2,dealerId:1,author:"Sarah M.",rating:4,date:"2025-12-08",verified:true,text:"Good selection of cars and fair prices. The salesperson was helpful though it took a bit longer than expected to get the finance sorted."},
+{id:3,dealerId:1,author:"David K.",rating:5,date:"2025-11-20",verified:true,text:"Third car I've bought from Hilton. They always go the extra mile. Full service history checked, HPI clear, and even threw in a valet."},
+{id:4,dealerId:2,author:"Emma R.",rating:4,date:"2026-01-22",verified:true,text:"Really transparent pricing — the car was listed at a fair price and they didn't try to upsell. Quick response to my messages too."},
+{id:5,dealerId:2,author:"Chris L.",rating:3,date:"2025-10-14",verified:false,text:"Car was fine but the handover felt rushed. Would have liked more time to go through features. Average experience overall."},
+{id:6,dealerId:3,author:"Tom H.",rating:5,date:"2026-02-01",verified:true,text:"Best EV dealer in London. Incredibly knowledgeable about charging, range, and running costs. Made the switch to electric stress-free."},
+{id:7,dealerId:3,author:"Lisa W.",rating:5,date:"2026-01-28",verified:true,text:"Amazing service. They even helped me set up my home charger installer. The Tesla was in immaculate condition."},
 ];
 const GARAGE = [{id:101,make:"Volkswagen",model:"Golf",variant:"1.5 TSI Life",year:2021,vrm:"AB21 CDE",colour:"Indium Grey",mileage:24500,motExpiry:"2026-03-14",taxExpiry:"2026-04-01",value:18500,img:"🚗",services:[{date:"2025-08-12",type:"Full Service",garage:"Halfords Autocentre",cost:189},{date:"2024-12-01",type:"MOT + Service",garage:"VW Main Dealer",cost:295},{date:"2024-03-10",type:"Annual Service",garage:"Halfords Autocentre",cost:169}]}];
 const EXPENSES=[{month:"Jan",fuel:142,insurance:0,tax:0,mot:0,service:0,parking:45,tolls:5,other:12},{month:"Feb",fuel:128,insurance:52,tax:0,mot:0,service:0,parking:38,tolls:5,other:8},{month:"Mar",fuel:155,insurance:52,tax:0,mot:45,service:189,parking:52,tolls:10,other:15},{month:"Apr",fuel:138,insurance:52,tax:165,mot:0,service:0,parking:42,tolls:5,other:22},{month:"May",fuel:145,insurance:52,tax:0,mot:0,service:0,parking:55,tolls:15,other:10},{month:"Jun",fuel:162,insurance:52,tax:0,mot:0,service:0,parking:48,tolls:5,other:18}];
@@ -404,8 +417,6 @@ input, select, textarea { font-family:var(--font); }
 }
 .detail-hero-img img {
   width:100%; height:100%; object-fit:cover;
-}
-  font-size:120px;
 }
 .detail-sidebar { display:flex; flex-direction:column; gap:16px; }
 .detail-price-card {
@@ -816,7 +827,30 @@ export default function CarGPTDesktop() {
   // Filters
   const [fFuel, setFFuel] = useState("All");
   const [fBody, setFBody] = useState("All");
-  const filtered = V.filter(v => (fFuel==="All"||v.fuel===fFuel) && (fBody==="All"||v.bodyType===fBody));
+  const [fPrice, setFPrice] = useState("All");
+  const [fSort, setFSort] = useState("match");
+  const filtered = V.filter(v => (fFuel==="All"||v.fuel===fFuel) && (fBody==="All"||v.bodyType===fBody) && (fPrice==="All" || (fPrice==="u15"&&v.price<15000) || (fPrice==="15-25"&&v.price>=15000&&v.price<=25000) || (fPrice==="25+"&&v.price>25000)))
+    .sort((a,b) => fSort==="price-low"?a.price-b.price : fSort==="price-high"?b.price-a.price : fSort==="newest"?a.daysListed-b.daysListed : b.matchScore-a.matchScore);
+
+  // Notifications
+  const [notifs, setNotifs] = useState(NOTIFS_SEED);
+  const unreadCount = notifs.filter(n=>!n.read).length;
+  const markRead = (id) => setNotifs(p=>p.map(n=>n.id===id?{...n,read:true}:n));
+  const markAllRead = () => setNotifs(p=>p.map(n=>({...n,read:true})));
+
+  // Saved Searches
+  const [savedSearches, setSavedSearches] = useState([
+    {id:1,name:"Family SUV under £30k",filters:{fuel:"All",body:"SUV",price:"u15"},alertFreq:"instant",created:"2026-02-10",matchCount:2},
+    {id:2,name:"Electric under £35k",filters:{fuel:"Electric",body:"All",price:"All"},alertFreq:"daily",created:"2026-02-18",matchCount:1},
+  ]);
+  const [showSavedSearches, setShowSavedSearches] = useState(false);
+
+  // Reviews
+  const [reviews] = useState(REVIEWS_SEED);
+  const [reviewModal, setReviewModal] = useState(false);
+  const [reviewStars, setReviewStars] = useState(0);
+  const [reviewText, setReviewText] = useState("");
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
 
   // AI Chat
   const [msgs, setMsgs] = useState([{role:"assistant",text:"Hey! 👋 I'm CarGPT — 8 cars in stock across London, £13,495 to £31,995. Tell me what you're after and I'll find your match.",quickReplies:["I need a family car","Show me EVs","Budget under £15k","What's the best deal?","I'm a new driver"]}]);
@@ -1177,8 +1211,8 @@ THE VEHICLE:
         </div>
       </div>
       <div className="nav-right">
-        <button className="nav-btn" onClick={()=>setShowNotifs(!showNotifs)} title="Notifications">
-          🔔 <span className="nav-badge"/>
+        <button className="nav-btn" onClick={()=>setShowNotifs(!showNotifs)} title="Notifications" style={{position:"relative"}}>
+          🔔 {unreadCount > 0 && <span style={{position:"absolute",top:2,right:2,width:18,height:18,borderRadius:"50%",background:"#DC2626",color:"white",fontSize:10,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center"}}>{unreadCount}</span>}
         </button>
         {user ? (
           <div className="nav-avatar" onClick={()=>{setPage("profile");setSel(null);}} title={user.name}>
@@ -1313,25 +1347,95 @@ THE VEHICLE:
   );
 
   // ═══ RENDER: SEARCH PAGE ═══
+  const saveCurrentSearch = () => {
+    if (!user) { setAuthModal("login"); return; }
+    const name = `${fFuel!=="All"?fFuel+" ":""}${fBody!=="All"?fBody+" ":""}${fPrice==="u15"?"Under £15k":fPrice==="15-25"?"£15k-£25k":fPrice==="25+"?"Over £25k":"All cars"}`.trim();
+    const newSearch = {id:Date.now(),name,filters:{fuel:fFuel,body:fBody,price:fPrice},alertFreq:"instant",created:new Date().toISOString().split("T")[0],matchCount:filtered.length};
+    setSavedSearches(p=>[newSearch,...p]);
+    // Add notification
+    setNotifs(p=>[{id:Date.now(),type:"saved_search",title:"Search saved!",desc:`You'll get alerts for "${name}"`,time:"Just now",read:false,icon:"✅",color:"#059669"},...p]);
+  };
+  const deleteSearch = (id) => setSavedSearches(p=>p.filter(s=>s.id!==id));
+
   const SearchPage = () => (
     <div className="section" style={{paddingBottom:80}}>
       <div className="section-head">
-        <div>
+        <div style={{flex:1}}>
           <div className="section-title">Browse Cars</div>
           <div className="section-subtitle">{filtered.length} vehicles found</div>
         </div>
+        <div style={{display:"flex",gap:8}}>
+          <button className="btn btn-outline btn-sm" onClick={()=>setShowSavedSearches(!showSavedSearches)} style={{fontSize:12}}>
+            🔔 Saved ({savedSearches.length})
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={saveCurrentSearch} style={{fontSize:12}}>
+            💾 Save Search
+          </button>
+        </div>
       </div>
-      <div className="filter-bar">
+
+      {/* Saved Searches Dropdown */}
+      {showSavedSearches && (
+        <div className="card mb-4" style={{animation:"fadeIn 0.2s ease"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div className="label-sm" style={{margin:0}}>Saved Searches</div>
+            <button onClick={()=>setShowSavedSearches(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:16}}>✕</button>
+          </div>
+          {savedSearches.length === 0 ? (
+            <div className="text-sm text-muted text-center" style={{padding:16}}>No saved searches yet. Use the filters and tap "Save Search".</div>
+          ) : savedSearches.map(s => (
+            <div key={s.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid var(--border-light)"}}>
+              <div style={{flex:1,cursor:"pointer"}} onClick={()=>{setFFuel(s.filters.fuel);setFBody(s.filters.body);setFPrice(s.filters.price);setShowSavedSearches(false);}}>
+                <div className="text-sm font-bold">{s.name}</div>
+                <div className="text-xs text-muted">{s.matchCount} matches · Alerts: {s.alertFreq} · Saved {s.created}</div>
+              </div>
+              <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                <select value={s.alertFreq} onChange={e=>setSavedSearches(p=>p.map(x=>x.id===s.id?{...x,alertFreq:e.target.value}:x))} style={{
+                  padding:"3px 6px",borderRadius:6,border:"1px solid var(--border-light)",fontSize:11,background:"white"
+                }}>
+                  <option value="instant">Instant</option>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="off">Off</option>
+                </select>
+                <button onClick={()=>deleteSearch(s.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"var(--text-muted)"}}>🗑️</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="filter-bar" style={{flexWrap:"wrap",gap:6}}>
         <span className="text-sm font-bold text-muted" style={{padding:"8px 4px",whiteSpace:"nowrap"}}>Fuel:</span>
         {["All","Petrol","Diesel","Electric","Hybrid"].map(f =>
           <button key={f} className={`filter-chip ${fFuel===f?"active":""}`} onClick={()=>setFFuel(f)}>{f}</button>
         )}
-        <div style={{width:16}}/>
+        <div style={{width:8}}/>
         <span className="text-sm font-bold text-muted" style={{padding:"8px 4px",whiteSpace:"nowrap"}}>Body:</span>
         {["All","Hatchback","Saloon","SUV"].map(b =>
           <button key={b} className={`filter-chip ${fBody===b?"active":""}`} onClick={()=>setFBody(b)}>{b}</button>
         )}
+        <div style={{width:8}}/>
+        <span className="text-sm font-bold text-muted" style={{padding:"8px 4px",whiteSpace:"nowrap"}}>Price:</span>
+        {[{k:"All",l:"All"},{k:"u15",l:"Under £15k"},{k:"15-25",l:"£15-25k"},{k:"25+",l:"Over £25k"}].map(p =>
+          <button key={p.k} className={`filter-chip ${fPrice===p.k?"active":""}`} onClick={()=>setFPrice(p.k)}>{p.l}</button>
+        )}
       </div>
+
+      {/* Sort bar */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",marginBottom:8}}>
+        <div className="text-xs text-muted">{filtered.length} results</div>
+        <div style={{display:"flex",gap:4}}>
+          {[{k:"match",l:"Best Match"},{k:"price-low",l:"Price ↑"},{k:"price-high",l:"Price ↓"},{k:"newest",l:"Newest"}].map(s=>
+            <button key={s.k} onClick={()=>setFSort(s.k)} style={{
+              padding:"4px 10px",borderRadius:100,border:"none",fontSize:11,fontWeight:600,cursor:"pointer",
+              background:fSort===s.k?"var(--primary)":"#F3F4F6",color:fSort===s.k?"white":"var(--text-muted)"
+            }}>{s.l}</button>
+          )}
+        </div>
+      </div>
+
       <div className="vehicle-grid">{filtered.map(v => VCard({v}))}</div>
     </div>
   );
@@ -1507,9 +1611,9 @@ THE VEHICLE:
             </div>
 
             <div className="tabs mb-4">
-              {["details","mot","ai"].map(t =>
+              {["details","mot","reviews","ai"].map(t =>
                 <button key={t} className={`tab-btn ${detailTab===t?"active":""}`} onClick={()=>setDetailTab(t)}>
-                  {t==="details"?"Details & Specs":t==="mot"?"MOT History":"Ask AI"}
+                  {t==="details"?"Details & Specs":t==="mot"?"MOT History":t==="reviews"?"Reviews":"Ask AI"}
                 </button>
               )}
             </div>
@@ -1553,6 +1657,61 @@ THE VEHICLE:
                   )}
                 </div>
               )}
+            </div>}
+
+            {detailTab==="reviews" && <div>
+              {/* Dealer rating summary */}
+              <div className="card mb-4" style={{background:"linear-gradient(135deg,#F8F9FA,#EEF2FF)"}}>
+                <div style={{display:"flex",gap:20,alignItems:"center"}}>
+                  <div style={{textAlign:"center"}}>
+                    <div style={{fontSize:42,fontWeight:800,color:"var(--primary)"}}>{dl.rating}</div>
+                    <div style={{display:"flex",gap:2,justifyContent:"center",margin:"4px 0"}}>
+                      {[1,2,3,4,5].map(s=><span key={s} style={{fontSize:16,color:s<=Math.round(dl.rating)?"#FBBF24":"#D1D5DB"}}>★</span>)}
+                    </div>
+                    <div className="text-xs text-muted">{dl.reviews} reviews</div>
+                  </div>
+                  <div style={{flex:1}}>
+                    {[{s:5,p:72},{s:4,p:20},{s:3,p:5},{s:2,p:2},{s:1,p:1}].map(r=>(
+                      <div key={r.s} style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
+                        <span style={{fontSize:11,width:8}}>{r.s}</span>
+                        <span style={{fontSize:10}}>★</span>
+                        <div style={{flex:1,height:6,background:"#E5E7EB",borderRadius:3,overflow:"hidden"}}>
+                          <div style={{width:`${r.p}%`,height:"100%",background:r.s>=4?"#FBBF24":r.s===3?"#F59E0B":"#EF4444",borderRadius:3}}/>
+                        </div>
+                        <span style={{fontSize:10,color:"var(--text-muted)",width:28,textAlign:"right"}}>{r.p}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Write review button */}
+              <button className="btn btn-outline btn-block btn-sm mb-4" onClick={()=>{
+                if(!user){setAuthModal("login");return;}
+                setReviewModal(true);setReviewStars(0);setReviewText("");setReviewSubmitted(false);
+              }}>✍️ Write a Review</button>
+
+              {/* Review list */}
+              {reviews.filter(r=>r.dealerId===dl.id).map(r=>(
+                <div key={r.id} className="card mb-3 fade-in">
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"start",marginBottom:8}}>
+                    <div>
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg,#E5E7EB,#D1D5DB)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"#6B7280"}}>{r.author.charAt(0)}</div>
+                        <div>
+                          <div className="text-sm font-bold" style={{display:"flex",alignItems:"center",gap:4}}>
+                            {r.author}
+                            {r.verified && <span style={{background:"#E8F5E9",color:"#2E7D32",fontSize:9,padding:"1px 5px",borderRadius:4,fontWeight:700}}>✓ Verified Buyer</span>}
+                          </div>
+                          <div style={{display:"flex",gap:2}}>{[1,2,3,4,5].map(s=><span key={s} style={{fontSize:12,color:s<=r.rating?"#FBBF24":"#D1D5DB"}}>★</span>)}</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted">{new Date(r.date).toLocaleDateString("en-GB",{month:"short",year:"numeric"})}</div>
+                  </div>
+                  <div className="text-sm" style={{lineHeight:1.5,color:"var(--text-secondary)"}}>{r.text}</div>
+                </div>
+              ))}
             </div>}
 
             {detailTab==="ai" && <div>
@@ -1669,20 +1828,50 @@ THE VEHICLE:
   };
 
   // ═══ RENDER: NOTIFICATION PANEL ═══
+  const [notifTab, setNotifTab] = useState("all");
   const NotifPanel = () => {
     if(!showNotifs) return null;
+    const filteredNotifs = notifTab==="all" ? notifs : notifTab==="unread" ? notifs.filter(n=>!n.read) : notifs.filter(n=>n.type===notifTab);
     return (<>
       <div style={{position:"fixed",inset:0,zIndex:150,background:"transparent"}} onClick={()=>setShowNotifs(false)}/>
       <div className="notif-panel">
-        <div className="notif-header"><div className="text-md font-bold">Notifications</div></div>
-        {NOTIFS.map(n =>
-          <div key={n.id} className="notif-item" onClick={()=>{setShowNotifs(false);if(n.type==="price_drop")setSel(V[1]);if(n.type==="new_match")setSel(V[4]);if(n.type==="agent")openModal("agents");}}>
+        <div className="notif-header">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div className="text-md font-bold">Notifications</div>
+            {unreadCount > 0 && <button onClick={markAllRead} style={{background:"none",border:"none",color:"var(--primary)",fontSize:12,fontWeight:600,cursor:"pointer"}}>Mark all read</button>}
+          </div>
+          <div style={{display:"flex",gap:4,marginTop:8,overflowX:"auto"}}>
+            {[{key:"all",label:"All"},{key:"unread",label:`Unread (${unreadCount})`},{key:"price_drop",label:"💰 Price"},{key:"saved_search",label:"🔔 Searches"},{key:"mot_reminder",label:"📋 MOT"}].map(t=>
+              <button key={t.key} onClick={()=>setNotifTab(t.key)} style={{
+                padding:"4px 10px",borderRadius:100,border:"none",fontSize:11,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",
+                background:notifTab===t.key?"var(--primary)":"#F3F4F6",color:notifTab===t.key?"white":"var(--text-muted)"
+              }}>{t.label}</button>
+            )}
+          </div>
+        </div>
+        {filteredNotifs.length === 0 ? (
+          <div style={{padding:"40px 20px",textAlign:"center"}}>
+            <div style={{fontSize:32,marginBottom:8}}>✅</div>
+            <div className="text-sm text-muted">All caught up!</div>
+          </div>
+        ) : filteredNotifs.map(n =>
+          <div key={n.id} className="notif-item" style={{background:n.read?"transparent":"#F0F7FF",borderLeft:n.read?"3px solid transparent":`3px solid ${n.color||"var(--primary)"}`}} onClick={()=>{
+            markRead(n.id);setShowNotifs(false);
+            if(n.type==="price_drop"&&n.vehicleIdx!=null)setSel(V[n.vehicleIdx]);
+            if(n.type==="new_match"&&n.vehicleIdx!=null)setSel(V[n.vehicleIdx]);
+            if(n.type==="agent")openModal("agents");
+            if(n.type==="saved_search"){setPage("search");setSel(null);}
+            if(n.type==="dealer_response")openModal("dealer-chat");
+          }}>
             <div className="flex gap-3">
-              <span style={{fontSize:20}}>{n.type==="price_drop"?"🔻":n.type==="agent"?"🤖":"🆕"}</span>
-              <div>
-                <div className="text-sm font-bold">{n.title}</div>
-                <div className="text-xs text-muted">{n.desc}</div>
-                <div className="text-xs text-muted mt-1">{n.time}</div>
+              <div style={{width:36,height:36,borderRadius:10,background:`${n.color||"#E5E7EB"}15`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{n.icon}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"start"}}>
+                  <div className="text-sm font-bold" style={{color:n.read?"var(--text-muted)":"var(--text-primary)"}}>{n.title}</div>
+                  {!n.read && <div style={{width:8,height:8,borderRadius:"50%",background:"var(--primary)",flexShrink:0,marginTop:4}}/>}
+                </div>
+                <div className="text-xs text-muted" style={{marginTop:2}}>{n.desc}</div>
+                <div className="text-xs text-muted" style={{marginTop:4,opacity:0.7}}>{n.time}</div>
               </div>
             </div>
           </div>
@@ -2228,6 +2417,54 @@ THE VEHICLE:
 
       {/* Auth Modal */}
       <AuthModal/>
+
+      {/* Review Modal */}
+      {reviewModal && (
+        <div className="modal-overlay" style={{zIndex:10000}} onClick={()=>setReviewModal(false)}>
+          <div style={{background:"white",borderRadius:20,width:"100%",maxWidth:480,padding:32,boxShadow:"0 25px 60px rgba(0,0,0,0.3)",animation:"slideUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
+            {reviewSubmitted ? (
+              <div className="text-center fade-in">
+                <div style={{fontSize:48,marginBottom:12}}>🎉</div>
+                <div className="text-lg font-extra mb-2">Thank you!</div>
+                <div className="text-sm text-muted mb-4">Your review has been submitted and will appear after verification.</div>
+                <button className="btn btn-primary" onClick={()=>setReviewModal(false)}>Done</button>
+              </div>
+            ) : (<>
+              <div className="text-lg font-extra mb-1">Write a Review</div>
+              <div className="text-sm text-muted mb-4">Share your experience with this dealer</div>
+              <div className="label-sm">Your Rating</div>
+              <div style={{display:"flex",gap:6,marginBottom:20}}>
+                {[1,2,3,4,5].map(s=>(
+                  <button key={s} onClick={()=>setReviewStars(s)} style={{
+                    fontSize:32,background:"none",border:"none",cursor:"pointer",
+                    color:s<=reviewStars?"#FBBF24":"#D1D5DB",transition:"transform 0.15s",
+                    transform:s<=reviewStars?"scale(1.1)":"scale(1)"
+                  }}>★</button>
+                ))}
+                <span className="text-sm text-muted" style={{alignSelf:"center",marginLeft:8}}>
+                  {reviewStars===0?"":reviewStars===1?"Poor":reviewStars===2?"Fair":reviewStars===3?"Average":reviewStars===4?"Good":"Excellent"}
+                </span>
+              </div>
+              <div className="label-sm">Your Review</div>
+              <textarea
+                value={reviewText} onChange={e=>setReviewText(e.target.value)}
+                placeholder="Tell others about your experience buying from this dealer..."
+                style={{width:"100%",height:120,padding:14,borderRadius:10,border:"1.5px solid var(--border-light)",fontSize:14,resize:"vertical",fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}
+                onFocus={e=>e.target.style.borderColor="var(--primary)"}
+                onBlur={e=>e.target.style.borderColor="var(--border-light)"}
+              />
+              <div className="text-xs text-muted" style={{marginTop:6,marginBottom:16}}>{reviewText.length}/500 characters</div>
+              <div style={{display:"flex",gap:10}}>
+                <button className="btn btn-secondary flex-1" onClick={()=>setReviewModal(false)}>Cancel</button>
+                <button className="btn btn-primary flex-1" disabled={!reviewStars||!reviewText.trim()}
+                  onClick={()=>setReviewSubmitted(true)}
+                  style={{opacity:(!reviewStars||!reviewText.trim())?0.5:1}}
+                >Submit Review</button>
+              </div>
+            </>)}
+          </div>
+        </div>
+      )}
     </>
   );
 }
