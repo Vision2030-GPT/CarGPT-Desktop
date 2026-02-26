@@ -1111,13 +1111,11 @@ THE VEHICLE:
     return { text: clean, suggestions: suggestions.slice(0, 4) };
   };
 
-  // ── Voice-to-text — simple, like Claude's mic ──
+  // ── Voice-to-text ──
   const [voiceActive, setVoiceActive] = useState(null);
   const recognitionRef = useRef(null);
-
-  const MicIcon = ({active, size=16}) => active
-    ? <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
-    : <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>;
+  const micSvg = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>;
+  const stopSvg = <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>;
 
   const toggleVoice = (target, setter) => {
     if (voiceActive) {
@@ -1475,7 +1473,7 @@ THE VEHICLE:
                 if((n.key==="favourites"||n.key==="garage"||n.key==="messages") && !user){ setAuthModal("login"); return; }
                 if(n.key==="messages") loadConversations();
                 setPage(n.key);setSel(null);
-              }}>{n.label}{n.key==="messages"&&conversations.filter(c=>c.user_unread_count>0).length>0&&<span style={{width:7,height:7,borderRadius:"50%",background:"#DC2626",display:"inline-block",marginLeft:4,verticalAlign:"middle"}}/>}</button>
+              }}>{n.label}{n.key==="messages"&&(conversations||[]).length>0&&(conversations||[]).some(c=>c.user_unread_count>0)&&<span style={{width:7,height:7,borderRadius:"50%",background:"#DC2626",display:"inline-block",marginLeft:4,verticalAlign:"middle"}}/>}</button>
           )}
           <button className={`nav-link ${showTools?"active":""}`} onClick={()=>setShowTools(!showTools)}>Tools ▾</button>
         </div>
@@ -1549,7 +1547,7 @@ THE VEHICLE:
           <input className={`ai-search-input${voiceActive==="main"?" voice-listening":""}`} placeholder={voiceActive==="main"?"Listening...":"Try \"family SUV under £25k with low insurance\"..."}
             value={heroIn} onChange={e=>setHeroIn(e.target.value)}
             onKeyDown={e=>{if(e.key==="Enter")sendChat(heroIn);}}/>
-          <button className={`btn-mic hero-mic${voiceActive==="main"?" active":""}`} onClick={()=>toggleVoice("main",(t)=>{setHeroIn(t);setChatIn(t);})} title="Voice search"><MicIcon active={voiceActive==="main"}/></button>
+          <button className={`btn-mic hero-mic${voiceActive==="main"?" active":""}`} onClick={()=>toggleVoice("main",(t)=>{setHeroIn(t);setChatIn(t);})} title="Voice search">{voiceActive==="main"?stopSvg:micSvg}</button>
           <button className="ai-search-btn" onClick={()=>sendChat(heroIn)}>Search with AI</button>
         </div>
         <div className="quick-actions">
@@ -2087,7 +2085,7 @@ THE VEHICLE:
               <div ref={vRef}/>
               <div className="flex gap-2 mt-3">
                 <input className={`input${voiceActive==="vehicle"?" voice-listening":""}`} style={{flex:1}} placeholder={voiceActive==="vehicle"?"Listening...":"Ask about this car..."} value={vIn} onChange={e=>setVIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")sendVMsg(vIn);}}/>
-                <button className={`btn-mic${voiceActive==="vehicle"?" active":""}`} onClick={()=>toggleVoice("vehicle",setVIn)} title="Voice input"><MicIcon active={voiceActive==="vehicle"}/></button>
+                <button className={`btn-mic${voiceActive==="vehicle"?" active":""}`} onClick={()=>toggleVoice("vehicle",setVIn)} title="Voice input">{voiceActive==="vehicle"?stopSvg:micSvg}</button>
                 <button className="btn btn-primary" onClick={()=>sendVMsg(vIn)}>Send</button>
               </div>
             </div>}
@@ -2553,7 +2551,7 @@ THE VEHICLE:
           <div style={{display:"flex",gap:8,marginBottom:12}}>
             <button className={`filter-chip ${!inboxOpen?"active":""}`} onClick={()=>setInboxOpen(false)} style={{flex:1,textAlign:"center"}}>Chat</button>
             <button className={`filter-chip ${inboxOpen?"active":""}`} onClick={()=>{setInboxOpen(true);loadConversations();}} style={{flex:1,textAlign:"center",position:"relative"}}>
-              Inbox {conversations.filter(c=>c.user_unread_count>0).length>0 && <span style={{width:8,height:8,borderRadius:"50%",background:"#DC2626",display:"inline-block",marginLeft:4}}/>}
+              Inbox {(conversations||[]).filter(c=>c.user_unread_count>0).length>0 && <span style={{width:8,height:8,borderRadius:"50%",background:"#DC2626",display:"inline-block",marginLeft:4}}/>}
             </button>
           </div>
 
@@ -2640,7 +2638,7 @@ THE VEHICLE:
               </div>
               <div className="flex gap-2 mt-3">
                 <input className={`input flex-1${voiceActive==="dealer"?" voice-listening":""}`} value={dIn} onChange={e=>setDIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")sendDMsg(dIn);}} placeholder={voiceActive==="dealer"?"Listening...":"Type a message..."}/>
-                <button className={`btn-mic${voiceActive==="dealer"?" active":""}`} onClick={()=>toggleVoice("dealer",setDIn)} title="Voice input"><MicIcon active={voiceActive==="dealer"}/></button>
+                <button className={`btn-mic${voiceActive==="dealer"?" active":""}`} onClick={()=>toggleVoice("dealer",setDIn)} title="Voice input">{voiceActive==="dealer"?stopSvg:micSvg}</button>
                 <button className="btn btn-primary" onClick={()=>sendDMsg(dIn)}>Send</button>
               </div>
             </>
@@ -2744,7 +2742,7 @@ THE VEHICLE:
           <input className={`chat-input${voiceActive==="main"?" voice-listening":""}`} placeholder={voiceActive==="main"?"Listening...":"Ask CarGPT anything..."}
             value={chatIn} onChange={e=>setChatIn(e.target.value)}
             onKeyDown={e=>{if(e.key==="Enter")sendChat(chatIn);}}/>
-          <button className={`btn-mic chat-mic${voiceActive==="main"?" active":""}`} onClick={()=>toggleVoice("main",(t)=>{setChatIn(t);setHeroIn(t);})} title="Voice input"><MicIcon active={voiceActive==="main"}/></button>
+          <button className={`btn-mic chat-mic${voiceActive==="main"?" active":""}`} onClick={()=>toggleVoice("main",(t)=>{setChatIn(t);setHeroIn(t);})} title="Voice input">{voiceActive==="main"?stopSvg:micSvg}</button>
           <button className="chat-send" onClick={()=>sendChat(chatIn)}>↑</button>
         </div>
       </div>
