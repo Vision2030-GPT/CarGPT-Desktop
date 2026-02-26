@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 
 // ═══════════════════════════════════════════════════
-// DATA — ALL ORIGINAL DATA PRESERVED
+// DATA — LOADED FROM SUPABASE (fallback to hardcoded)
 // ═══════════════════════════════════════════════════
-const V = [
+const FALLBACK_V = [
 {id:1,make:"Volkswagen",model:"Golf",variant:"1.5 TSI 150 Life",year:2021,price:18995,mileage:24500,fuel:"Petrol",transmission:"DSG Auto",bodyType:"Hatchback",colour:"Indium Grey",doors:5,engineSize:"1.5L",co2:130,insuranceGroup:15,euroEmissions:"Euro 6d",ulezCompliant:true,taxCost:165,img:"🚗",dealerId:1,daysListed:12,vrm:"AB21 CDE",motExpiry:"2026-03-14",previousKeepers:1,serviceHistory:true,hpiClear:true,matchScore:96,priceRating:"Good Deal",location:"London, E14",features:["Adaptive Cruise","Apple CarPlay","Parking Sensors","LED Headlights","Heated Seats"],specs:{bhp:150,torque:"250 Nm",acceleration:8.5,bootSpace:380,fuelEconomy:47.1},mot:[{date:"2025-03-14",result:"Pass",mileage:21200,advisories:["Front-left tyre slightly worn (minor)"]},{date:"2024-03-10",result:"Pass",mileage:16800,advisories:[]},{date:"2023-03-08",result:"Pass",mileage:11500,advisories:["Nearside brake disc slightly worn"]}]},
 {id:2,make:"BMW",model:"3 Series",variant:"320d M Sport",year:2020,price:22495,mileage:38200,fuel:"Diesel",transmission:"Automatic",bodyType:"Saloon",colour:"Alpine White",doors:4,engineSize:"2.0L",co2:118,insuranceGroup:28,euroEmissions:"Euro 6d",ulezCompliant:true,taxCost:155,img:"🏎️",dealerId:2,daysListed:28,vrm:"CD20 FGH",motExpiry:"2026-01-22",previousKeepers:2,serviceHistory:true,hpiClear:true,matchScore:91,priceRating:"Great Deal",location:"London, NW1",features:["M Sport Body Kit","Sat Nav Pro","Leather Seats","Reverse Camera","Harman Kardon"],specs:{bhp:190,torque:"400 Nm",acceleration:7.1,bootSpace:480,fuelEconomy:55.4},mot:[{date:"2025-01-22",result:"Pass",mileage:35100,advisories:["Rear exhaust slightly corroded"]},{date:"2024-01-18",result:"Pass",mileage:28400,advisories:[]}]},
 {id:3,make:"Tesla",model:"Model 3",variant:"Long Range AWD",year:2022,price:29995,mileage:18300,fuel:"Electric",transmission:"Automatic",bodyType:"Saloon",colour:"Pearl White",doors:4,engineSize:"Electric",co2:0,insuranceGroup:48,euroEmissions:"Zero Emission",ulezCompliant:true,taxCost:0,img:"⚡",dealerId:3,daysListed:5,vrm:"EF22 GHI",motExpiry:"2025-11-30",previousKeepers:1,serviceHistory:true,hpiClear:true,matchScore:88,priceRating:"Fair Price",location:"London, SW19",features:["Autopilot","15\" Touchscreen","Glass Roof","Premium Audio","Sentry Mode"],specs:{bhp:346,torque:"493 Nm",acceleration:4.4,bootSpace:561,fuelEconomy:"4 mi/kWh",batteryCapacity:"75 kWh",range:374},mot:[{date:"2025-11-30",result:"Pass",mileage:16200,advisories:[]}]},
@@ -13,7 +13,7 @@ const V = [
 {id:7,make:"Toyota",model:"Yaris",variant:"1.5 Hybrid Design",year:2022,price:16995,mileage:15200,fuel:"Hybrid",transmission:"CVT Auto",bodyType:"Hatchback",colour:"Tokyo Red",doors:5,engineSize:"1.5L",co2:92,insuranceGroup:10,euroEmissions:"Euro 6d",ulezCompliant:true,taxCost:0,img:"🚗",dealerId:3,daysListed:14,vrm:"NP22 STU",motExpiry:"2025-09-28",previousKeepers:1,serviceHistory:true,hpiClear:true,matchScore:82,priceRating:"Fair Price",location:"Richmond, TW9",features:["Hybrid System","Toyota Safety Sense","8\" Touchscreen","Wireless Charging","Auto Climate"],specs:{bhp:116,torque:"120 Nm",acceleration:9.7,bootSpace:286,fuelEconomy:68.9},mot:[{date:"2025-09-28",result:"Pass",mileage:13100,advisories:[]}]},
 {id:8,make:"Kia",model:"Sportage",variant:"1.6 T-GDi HEV GT-Line S",year:2023,price:31995,mileage:8400,fuel:"Hybrid",transmission:"Automatic",bodyType:"SUV",colour:"Runway Red",doors:5,engineSize:"1.6L",co2:135,insuranceGroup:22,euroEmissions:"Euro 6d",ulezCompliant:true,taxCost:165,img:"🚙",dealerId:4,daysListed:3,vrm:"QR23 VWX",motExpiry:"2026-08-15",previousKeepers:1,serviceHistory:true,hpiClear:true,matchScore:87,priceRating:"Fair Price",location:"Wimbledon, SW19",features:["7-Year Warranty","Panoramic Roof","12.3\" Dual Screens","360° Camera","Heated/Ventilated Seats"],specs:{bhp:230,torque:"350 Nm",acceleration:8.0,bootSpace:591,fuelEconomy:47.9},mot:[{date:"2025-08-15",result:"Pass",mileage:5200,advisories:[]}]},
 ];
-const D = [
+const FALLBACK_D = [
 {id:1,name:"Hilton Car Supermarket",location:"London, E14",rating:4.8,reviews:342,responseTime:"< 15 min",trustScore:95},
 {id:2,name:"Premium Motors London",location:"London, NW1",rating:4.6,reviews:218,responseTime:"< 30 min",trustScore:88},
 {id:3,name:"Electric Avenue Cars",location:"London, SW19",rating:4.9,reviews:156,responseTime:"< 10 min",trustScore:97},
@@ -592,6 +592,79 @@ const SlideOver = ({show, onClose, title, children}) => {
 };
 
 export default function CarGPTDesktop() {
+  // ═══ DATABASE STATE ═══
+  const [V, setV] = useState(FALLBACK_V);
+  const [D, setD] = useState(FALLBACK_D);
+  const [dbLoaded, setDbLoaded] = useState(false);
+
+  // ═══ FETCH FROM DATABASE ═══
+  useEffect(() => {
+    const fuelMap = {petrol:"Petrol",diesel:"Diesel",electric:"Electric",hybrid:"Hybrid",plug_in_hybrid:"Plug-in Hybrid"};
+    const transMap = {manual:"Manual",automatic:"Automatic"};
+    const bodyMap = {hatchback:"Hatchback",saloon:"Saloon",suv:"SUV",estate:"Estate",coupe:"Coupe",convertible:"Convertible",mpv:"MPV",van:"Van",pickup:"Pickup",other:"Other"};
+    const imgMap = {electric:"⚡",suv:"🚙",saloon:"🏎️",hatchback:"🚗",estate:"🚗",coupe:"🏎️"};
+    fetch("/api/vehicles").then(r=>r.json()).then(data=>{
+      if(!data.vehicles?.length) return;
+      const cars = data.vehicles.map((v,i) => ({
+        id: v.id,
+        make: v.make,
+        model: v.model,
+        variant: v.variant || "",
+        year: v.year,
+        price: v.price,
+        mileage: v.mileage,
+        fuel: fuelMap[v.fuel_type] || v.fuel_type,
+        transmission: v.transmission === "automatic" ? "Automatic" : "Manual",
+        bodyType: bodyMap[v.body_type] || v.body_type,
+        colour: v.colour,
+        doors: v.doors,
+        engineSize: v.engine_size || "",
+        co2: v.co2_emissions || 0,
+        insuranceGroup: v.insurance_group || 0,
+        euroEmissions: v.euro_emissions || "",
+        ulezCompliant: v.ulez_compliant !== false,
+        taxCost: v.tax_cost || 0,
+        img: imgMap[v.fuel_type] || imgMap[v.body_type] || "🚗",
+        dealerId: v.dealer_id,
+        daysListed: v.days_listed || 0,
+        vrm: v.vrm,
+        motExpiry: v.mot_expiry || "",
+        previousKeepers: v.previous_keepers || 1,
+        serviceHistory: v.service_history === "full",
+        hpiClear: v.hpi_clear !== false,
+        matchScore: 95 - (i * 3),
+        priceRating: v.price_indicator || "Good Deal",
+        location: v.dealer ? `${v.dealer.city || "London"}, ${v.dealer.postcode || ""}` : "London",
+        features: v.features || [],
+        specs: {
+          bhp: v.bhp || 0,
+          torque: v.torque || "",
+          acceleration: v.acceleration || 0,
+          bootSpace: v.boot_space || 0,
+          fuelEconomy: v.fuel_economy || "",
+          batteryCapacity: v.battery_capacity || null,
+          range: v.electric_range || null,
+        },
+        mot: v.mot || [],
+        description: v.description || "",
+        images: v.images || [],
+      }));
+      const dealers = (data.dealers || []).map(d => ({
+        id: d.id,
+        name: d.name,
+        location: `${d.city || "London"}, ${d.postcode || ""}`,
+        rating: parseFloat(d.rating) || 4.5,
+        reviews: d.review_count || 0,
+        responseTime: d.response_time || "< 2 hours",
+        trustScore: d.trust_score || 80,
+      }));
+      setV(cars);
+      setD(dealers);
+      setDbLoaded(true);
+      console.log(`✅ Loaded ${cars.length} vehicles, ${dealers.length} dealers from database`);
+    }).catch(e => console.warn("DB fetch failed, using fallback data:", e.message));
+  }, []);
+
   // Navigation & Views
   const [page, setPage] = useState("home"); // home, search, favourites, garage, profile
   const [sel, setSel] = useState(null);
@@ -600,7 +673,7 @@ export default function CarGPTDesktop() {
   const [showTools, setShowTools] = useState(false);
 
   // Favourites & Data
-  const [favs, setFavs] = useState([1,3,5]);
+  const [favs, setFavs] = useState([]);
   const toggleFav = (id) => setFavs(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id]);
 
   // Filters
