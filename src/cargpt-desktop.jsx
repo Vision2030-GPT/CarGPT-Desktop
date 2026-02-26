@@ -527,7 +527,7 @@ input, select, textarea { font-family:var(--font); }
   position:fixed; left:0; top:64px; bottom:0;
   width:240px; background:var(--surface);
   border-right:1px solid var(--border);
-  overflow-y:auto; z-index:50; padding:16px 0;
+  overflow-y:auto; z-index:201; padding:16px 0;
   animation:slideInLeft 0.25s ease;
 }
 @keyframes slideInLeft { from{transform:translateX(-100%)} to{transform:translateX(0)} }
@@ -548,7 +548,7 @@ input, select, textarea { font-family:var(--font); }
 
 /* NOTIFICATION PANEL */
 .notif-panel {
-  position:fixed; top:64px; right:32px; z-index:150;
+  position:fixed; top:64px; right:32px; z-index:151;
   width:360px; background:var(--surface); border:1px solid var(--border);
   border-radius:var(--radius); box-shadow:var(--shadow-xl);
   animation:fadeIn 0.2s ease; overflow:hidden;
