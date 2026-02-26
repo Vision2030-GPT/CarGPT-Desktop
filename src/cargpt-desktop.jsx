@@ -359,20 +359,20 @@ input, select, textarea { font-family:var(--font); }
 .btn-mic {
   width:36px; height:36px; border-radius:50%;
   background:var(--surface); border:1.5px solid var(--border);
-  cursor:pointer; font-size:15px; display:flex;
+  cursor:pointer; display:flex;
   align-items:center; justify-content:center;
-  transition:all 0.2s; flex-shrink:0;
+  transition:all 0.2s; flex-shrink:0; color:var(--text-secondary);
 }
-.btn-mic:hover { border-color:var(--primary); background:rgba(66,133,244,0.06); }
+.btn-mic:hover { border-color:var(--primary); color:var(--primary); background:rgba(66,133,244,0.06); }
 .btn-mic.active {
   background:#DC2626; border-color:#DC2626; color:white;
   animation:micPulse 1.5s infinite;
 }
-.hero-mic { width:32px; height:32px; font-size:14px; background:transparent; border:none; flex-shrink:0; }
+.hero-mic { width:34px; height:34px; background:transparent; border:none; }
 .hero-mic:hover { background:rgba(66,133,244,0.08); border-radius:50%; }
-.hero-mic.active { background:#DC2626; border-radius:50%; color:white; animation:micPulse 1.5s infinite; }
-.chat-mic { background:transparent; border:none; width:32px; height:32px; font-size:14px; }
-.chat-mic:hover { background:rgba(66,133,244,0.08); }
+.hero-mic.active { background:#DC2626; border-radius:50%; color:white; border:none; animation:micPulse 1.5s infinite; }
+.chat-mic { background:transparent; border:none; width:32px; height:32px; }
+.chat-mic:hover { background:rgba(66,133,244,0.08); border-radius:50%; }
 .chat-mic.active { background:#DC2626; border-radius:50%; color:white; animation:micPulse 1.5s infinite; }
 @keyframes micPulse { 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,0.3)} 50%{box-shadow:0 0 0 8px rgba(220,38,38,0)} }
 .voice-listening { border-color:#DC2626 !important; box-shadow:0 0 0 3px rgba(220,38,38,0.12) !important; }
@@ -1115,6 +1115,10 @@ THE VEHICLE:
   const [voiceActive, setVoiceActive] = useState(null);
   const recognitionRef = useRef(null);
 
+  const MicIcon = ({active, size=16}) => active
+    ? <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
+    : <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>;
+
   const toggleVoice = (target, setter) => {
     if (voiceActive) {
       if (recognitionRef.current) try { recognitionRef.current.stop(); } catch(e) {}
@@ -1127,21 +1131,33 @@ THE VEHICLE:
     const r = new SR();
     r.lang = "en-GB";
     r.interimResults = true;
-    r.continuous = false;
+    r.continuous = true;
     recognitionRef.current = r;
     setVoiceActive(target);
     let final = "";
     r.onresult = (e) => {
       let interim = "";
       for (let i = 0; i < e.results.length; i++) {
-        if (e.results[i].isFinal) final += e.results[i][0].transcript;
+        if (e.results[i].isFinal) final += (final?" ":"") + e.results[i][0].transcript;
         else interim += e.results[i][0].transcript;
       }
-      setter((final + " " + interim).trim());
+      setter((final + (interim ? " " + interim : "")).trim());
     };
-    r.onend = () => { setVoiceActive(null); recognitionRef.current = null; };
-    r.onerror = () => { setVoiceActive(null); recognitionRef.current = null; };
-    r.start();
+    r.onend = () => {
+      // Auto restart if still active (browser stops after silence)
+      if (recognitionRef.current && voiceActive) {
+        try { r.start(); } catch(e) {
+          setVoiceActive(null); recognitionRef.current = null;
+        }
+        return;
+      }
+      setVoiceActive(null); recognitionRef.current = null;
+    };
+    r.onerror = (e) => {
+      if (e.error === "no-speech" || e.error === "aborted") return;
+      setVoiceActive(null); recognitionRef.current = null;
+    };
+    try { r.start(); } catch(e) { setVoiceActive(null); }
   };
 
   const sendChat = async (text) => {
@@ -1375,20 +1391,72 @@ THE VEHICLE:
   const doHpiCheck = () => {const q=hpiReg.toUpperCase().replace(/\s/g,"");const match=V.find(v=>v.vrm.replace(/\s/g,"")===q);const car=match||V[Math.floor(Math.random()*V.length)];setHpiResult({car,free:{make:car.make,model:car.model,year:car.year,fuel:car.fuel,colour:car.colour,engineSize:car.engineSize,co2:car.co2,taxStatus:car.taxCost===0?"Taxed (£0)":"Taxed",taxDue:"01 Oct 2026",motStatus:"Valid",motExpiry:car.motExpiry,firstReg:"01 Mar "+car.year},premium:{financeOutstanding:Math.random()>0.85?"⚠️ YES — £8,420 outstanding":"✅ None recorded",stolen:"✅ Not recorded as stolen",writeOff:Math.random()>0.9?"⚠️ Cat N (2022)":"✅ No write-off recorded",scrapped:"✅ Not recorded as scrapped",plateChanges:Math.random()>0.7?`1 previous plate`:"None recorded",keeperChanges:`${car.previousKeepers+1} registered keepers`,mileageAnomaly:"✅ No mileage discrepancies found",importExport:"✅ UK registered — not imported",highRisk:Math.random()>0.92?"⚠️ Flagged":"✅ No high risk markers",vin:"WVW"+Math.random().toString(36).substring(2,12).toUpperCase()}}); };
   const doJourney=()=>{if(!journeyFrom&&!journeyTo)return;const dist=Math.round(5+Math.random()*80);const fuel=Math.round((dist/45)*4.546*1.45*100)/100;const tolls=dist>30?Math.random()>0.5?{name:"Dart Charge",cost:2.50}:null:null;const cong=journeyFrom.toLowerCase().includes("central")||journeyTo.toLowerCase().includes("central")?15:0;const ulez=cong>0?12.50:0;const park=3+Math.round(Math.random()*12);setJourneyResult({dist,time:Math.round(dist*1.8),fuel,tolls,cong,ulez,park,total:Math.round((fuel+(tolls?.cost||0)+cong+ulez+park)*100)/100});};
 
-  const runAgent = (type) => {
+  const runAgent = async (type) => {
     setAgentType(type); setAgentRunning(true); setAgentSteps([]);
-    const stepsMap = {
-      hunt:[{t:"Scanning 450,000+ listings...",d:800},{t:"Filtering by your preferences...",d:1000},{t:"Analysing pricing data...",d:900},{t:"Found 3 deals below market value!",d:700}],
-      testdrive:[{t:"Checking dealer availability...",d:800},{t:"Contacting Hilton Car Supermarket...",d:1200},{t:"Finding optimal route for 2 dealers...",d:900},{t:"✅ Test drives booked: Tue 2pm & Wed 11am",d:600}],
-      negotiate:[{t:"Analysing market position...",d:800},{t:"Preparing negotiation strategy...",d:1000},{t:"Contacting dealer with your offer...",d:1500},{t:"✅ Dealer countered at £1,200 off asking price!",d:600}],
-      partex:[{t:"Looking up your vehicle...",d:700},{t:"Requesting valuations from 4 dealers...",d:1200},{t:"Comparing offers...",d:900},{t:"✅ Best offer: £18,750 from Hilton Car Supermarket",d:600}],
-      finance:[{t:"Running soft credit check...",d:800},{t:"Querying 12 lenders...",d:1200},{t:"Comparing APR rates...",d:800},{t:"✅ Best rate: 6.9% APR with Black Horse (£287/mo)",d:600}],
-      paperwork:[{t:"Generating V5C transfer checklist...",d:700},{t:"Finding insurance quotes...",d:1000},{t:"Preparing tax reminder...",d:800},{t:"✅ All documents ready — driveaway cover arranged",d:600}],
-    };
-    const steps=stepsMap[type]||stepsMap.hunt;
-    let i=0;
-    const runStep=()=>{if(i<steps.length){setAgentSteps(prev=>[...prev,steps[i]]);i++;setTimeout(runStep,steps[i-1].d);}else{setAgentRunning(false);}};
-    setTimeout(runStep,400);
+    const v = sel || V[Math.floor(Math.random()*V.length)];
+    const fin = calcFin(v.price);
+
+    const addStep = (t, delay=600) => new Promise(r => {
+      setTimeout(() => { setAgentSteps(prev=>[...prev,{t}]); r(); }, delay);
+    });
+
+    try {
+      if (type === "hunt") {
+        await addStep("🔍 Scanning 450,000+ UK listings...", 400);
+        await addStep("🎯 Filtering by your preferences...", 800);
+        await addStep("📊 Analysing market pricing data...", 900);
+        // Real AI call
+        const prompt = `You're CarGPT Deal Hunter. Given these cars in stock, identify the top 3 deals and explain why in 1 line each. Be specific with numbers.\n${V.map(c=>`${c.year} ${c.make} ${c.model}: ${fmt(c.price)}, ${fmtMi(c.mileage)}, ${c.daysListed} days listed, rated "${c.priceRating}"`).join("\n")}\nFormat: numbered list, 1 line each, mention savings.`;
+        const r = await callAI([{role:"user",content:prompt}], 250);
+        const { text: clean } = parseSuggestions(r || "Found 3 great deals below market value!");
+        await addStep("✅ " + clean, 400);
+      }
+      else if (type === "testdrive") {
+        await addStep("📅 Checking dealer availability...", 400);
+        await addStep(`🏪 Contacting ${V.slice(0,3).map(c=>c.location.split(",")[0]).join(", ")}...`, 900);
+        await addStep("🗓️ Finding optimal schedule...", 700);
+        const slots = ["Mon 10am","Tue 2pm","Wed 11am","Thu 3:30pm","Sat 10am"];
+        const s1 = slots[Math.floor(Math.random()*slots.length)];
+        const s2 = slots[Math.floor(Math.random()*slots.length)];
+        await addStep(`✅ 2 test drives booked:\n• ${v.make} ${v.model} — ${s1} at ${v.location}\n• ${V.find(x=>x.id!==v.id)?.make} ${V.find(x=>x.id!==v.id)?.model} — ${s2}`, 400);
+      }
+      else if (type === "negotiate") {
+        await addStep("📊 Analysing market position...", 400);
+        await addStep(`💰 ${v.make} ${v.model} at ${fmt(v.price)} — rated "${v.priceRating}"`, 700);
+        await addStep("🤝 Preparing negotiation strategy...", 800);
+        const prompt = `You're CarGPT Price Negotiator. This ${v.year} ${v.make} ${v.model} is listed at ${fmt(v.price)} with ${fmtMi(v.mileage)}, rated "${v.priceRating}", listed ${v.daysListed} days. Give a 2-sentence negotiation result: what discount you got and why the dealer agreed. Be specific with £ amounts. Be realistic.`;
+        const r = await callAI([{role:"user",content:prompt}], 150);
+        const { text: clean } = parseSuggestions(r || `Negotiated £800 off — now ${fmt(v.price-800)}`);
+        await addStep("✅ " + clean, 400);
+      }
+      else if (type === "partex") {
+        await addStep("🚗 Looking up your vehicle...", 400);
+        await addStep("📨 Requesting valuations from 4 dealers...", 1000);
+        await addStep("⚖️ Comparing offers...", 800);
+        const base = 8000 + Math.floor(Math.random()*12000);
+        const offers = D.slice(0,4).map((d,i) => ({name:d.name, offer:base + (i===0?1200:i===1?800:i===2?-200:-600)}));
+        offers.sort((a,b)=>b.offer-a.offer);
+        await addStep(`✅ Best offer: ${fmt(offers[0].offer)} from ${offers[0].name}\n• ${offers[1].name}: ${fmt(offers[1].offer)}\n• ${offers[2].name}: ${fmt(offers[2].offer)}\n• ${offers[3].name}: ${fmt(offers[3].offer)}`, 400);
+      }
+      else if (type === "finance") {
+        await addStep("📋 Running soft credit check (no impact)...", 400);
+        await addStep("🏦 Querying 12 lenders...", 1000);
+        await addStep(`💳 Comparing rates for ${fmt(v.price)}...`, 800);
+        const prompt = `You're CarGPT Finance Shopper. For a ${v.year} ${v.make} ${v.model} at ${fmt(v.price)}, give the best finance result in 2 sentences: best APR rate, monthly payment on PCP with 10% deposit over 48 months, and which lender. Mention a second option briefly. Be specific with numbers.`;
+        const r = await callAI([{role:"user",content:prompt}], 150);
+        const { text: clean } = parseSuggestions(r || `Best rate: ${fin.apr}% APR with Black Horse — £${fin.monthly}/mo PCP`);
+        await addStep("✅ " + clean, 400);
+      }
+      else if (type === "paperwork") {
+        await addStep("📄 Generating V5C transfer checklist...", 400);
+        await addStep("🛡️ Finding insurance quotes...", 900);
+        await addStep("💰 Setting up tax reminder...", 700);
+        await addStep(`✅ All sorted for ${v.make} ${v.model}:\n• V5C transfer guide ready\n• 3 insurance quotes found (from £${Math.round(300+v.insuranceGroup*18)}/yr)\n• Tax reminder set (£${v.taxCost}/yr)\n• Driveaway cover available`, 400);
+      }
+    } catch(e) {
+      await addStep("✅ Complete — results ready", 400);
+    }
+    setAgentRunning(false);
   };
 
   const openModal = (key) => { setActiveModal(key); setShowTools(false); };
@@ -1481,7 +1549,7 @@ THE VEHICLE:
           <input className={`ai-search-input${voiceActive==="main"?" voice-listening":""}`} placeholder={voiceActive==="main"?"Listening...":"Try \"family SUV under £25k with low insurance\"..."}
             value={heroIn} onChange={e=>setHeroIn(e.target.value)}
             onKeyDown={e=>{if(e.key==="Enter")sendChat(heroIn);}}/>
-          <button className={`btn-mic hero-mic${voiceActive==="main"?" active":""}`} onClick={()=>toggleVoice("main",(t)=>{setHeroIn(t);setChatIn(t);})} title="Voice search">{voiceActive==="main"?"⏹":"🎙️"}</button>
+          <button className={`btn-mic hero-mic${voiceActive==="main"?" active":""}`} onClick={()=>toggleVoice("main",(t)=>{setHeroIn(t);setChatIn(t);})} title="Voice search"><MicIcon active={voiceActive==="main"}/></button>
           <button className="ai-search-btn" onClick={()=>sendChat(heroIn)}>Search with AI</button>
         </div>
         <div className="quick-actions">
@@ -2019,7 +2087,7 @@ THE VEHICLE:
               <div ref={vRef}/>
               <div className="flex gap-2 mt-3">
                 <input className={`input${voiceActive==="vehicle"?" voice-listening":""}`} style={{flex:1}} placeholder={voiceActive==="vehicle"?"Listening...":"Ask about this car..."} value={vIn} onChange={e=>setVIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")sendVMsg(vIn);}}/>
-                <button className={`btn-mic${voiceActive==="vehicle"?" active":""}`} onClick={()=>toggleVoice("vehicle",setVIn)} title="Voice input">{voiceActive==="vehicle"?"⏹":"🎙️"}</button>
+                <button className={`btn-mic${voiceActive==="vehicle"?" active":""}`} onClick={()=>toggleVoice("vehicle",setVIn)} title="Voice input"><MicIcon active={voiceActive==="vehicle"}/></button>
                 <button className="btn btn-primary" onClick={()=>sendVMsg(vIn)}>Send</button>
               </div>
             </div>}
@@ -2260,8 +2328,8 @@ THE VEHICLE:
               </div>
             )}
           </> : <>
-            <div className="text-sm text-muted mb-3">Agent working...</div>
-            {agentSteps.map((s,i)=><div key={i} className="step-item fade-in"><div className={`step-dot ${i<agentSteps.length-1||!agentRunning?"step-done":"step-active"}`}>{i<agentSteps.length-1||!agentRunning?"✓":"⟳"}</div><div className="text-sm" style={{paddingTop:3}}>{s.t}</div></div>)}
+            <div className="text-sm text-muted mb-3">{agentRunning?"Agent working...":"Results"}</div>
+            {agentSteps.map((s,i)=><div key={i} className="step-item fade-in"><div className={`step-dot ${i<agentSteps.length-1||!agentRunning?"step-done":"step-active"}`}>{i<agentSteps.length-1||!agentRunning?"✓":"⟳"}</div><div className="text-sm" style={{paddingTop:3,whiteSpace:"pre-line"}}>{s.t}</div></div>)}
             <div className="progress mt-3"><div className="progress-fill" style={{width:`${agentRunning?Math.min(90,agentSteps.length*25):100}%`}}/></div>
             {!agentRunning&&agentSteps.length>0&&<button className="btn btn-secondary btn-block mt-3" onClick={()=>{setAgentType(null);setAgentSteps([]);}}>← Back to Agents</button>}
           </>}
@@ -2572,7 +2640,7 @@ THE VEHICLE:
               </div>
               <div className="flex gap-2 mt-3">
                 <input className={`input flex-1${voiceActive==="dealer"?" voice-listening":""}`} value={dIn} onChange={e=>setDIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")sendDMsg(dIn);}} placeholder={voiceActive==="dealer"?"Listening...":"Type a message..."}/>
-                <button className={`btn-mic${voiceActive==="dealer"?" active":""}`} onClick={()=>toggleVoice("dealer",setDIn)} title="Voice input">{voiceActive==="dealer"?"⏹":"🎙️"}</button>
+                <button className={`btn-mic${voiceActive==="dealer"?" active":""}`} onClick={()=>toggleVoice("dealer",setDIn)} title="Voice input"><MicIcon active={voiceActive==="dealer"}/></button>
                 <button className="btn btn-primary" onClick={()=>sendDMsg(dIn)}>Send</button>
               </div>
             </>
@@ -2676,7 +2744,7 @@ THE VEHICLE:
           <input className={`chat-input${voiceActive==="main"?" voice-listening":""}`} placeholder={voiceActive==="main"?"Listening...":"Ask CarGPT anything..."}
             value={chatIn} onChange={e=>setChatIn(e.target.value)}
             onKeyDown={e=>{if(e.key==="Enter")sendChat(chatIn);}}/>
-          <button className={`btn-mic chat-mic${voiceActive==="main"?" active":""}`} onClick={()=>toggleVoice("main",(t)=>{setChatIn(t);setHeroIn(t);})} title="Voice input">{voiceActive==="main"?"⏹":"🎙️"}</button>
+          <button className={`btn-mic chat-mic${voiceActive==="main"?" active":""}`} onClick={()=>toggleVoice("main",(t)=>{setChatIn(t);setHeroIn(t);})} title="Voice input"><MicIcon active={voiceActive==="main"}/></button>
           <button className="chat-send" onClick={()=>sendChat(chatIn)}>↑</button>
         </div>
       </div>
