@@ -225,8 +225,9 @@ input, select, textarea { font-family:var(--font); }
 .section-link:hover { text-decoration:underline; }
 
 /* FILTER BAR */
+/* FILTERS */
 .filter-bar {
-  display:flex; gap:8px; margin-bottom:20px;
+  display:flex; gap:8px; margin-bottom:16px;
   overflow-x:auto; padding-bottom:4px;
 }
 .filter-chip {
@@ -239,6 +240,34 @@ input, select, textarea { font-family:var(--font); }
   background:var(--text); color:white; border-color:var(--text);
 }
 .filter-chip:hover:not(.active) { border-color:#9CA3AF; }
+.filter-select {
+  padding:9px 32px 9px 12px; border-radius:10px;
+  border:1.5px solid var(--border); background:var(--surface);
+  font-size:13px; font-weight:600; color:var(--text);
+  cursor:pointer; transition:all 0.15s;
+  appearance:none; -webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 10px center;
+}
+.filter-select:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px rgba(66,133,244,0.1); }
+.filter-select.has-value { border-color:var(--primary); background:var(--primary-light); color:var(--primary); }
+.filter-grid {
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr));
+  gap:10px;
+}
+.filter-tag {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:6px 12px; border-radius:100px;
+  background:var(--primary-light); color:var(--primary);
+  font-size:12px; font-weight:600;
+}
+.filter-tag-x {
+  width:16px; height:16px; border-radius:50%; border:none;
+  background:rgba(66,133,244,0.15); color:var(--primary);
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  font-size:10px; font-weight:700; transition:all 0.15s;
+}
+.filter-tag-x:hover { background:var(--primary); color:white; }
 
 /* VEHICLE GRID */
 .vehicle-grid {
@@ -2098,58 +2127,74 @@ THE VEHICLE:
   const deleteSearch = (id) => setSavedSearches(p=>p.filter(s=>s.id!==id));
 
   const SearchPage = () => {
-    const FilterRow = ({label, options, value, setter}) => (
-      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:8}}>
-        <span className="text-xs font-bold text-muted" style={{width:72,flexShrink:0}}>{label}</span>
-        {options.map(o => {
-          const k = typeof o === "string" ? o : o.k;
-          const l = typeof o === "string" ? o : o.l;
-          return <button key={k} className={`filter-chip ${value===k?"active":""}`} onClick={()=>setter(k)}>{l}</button>;
-        })}
-      </div>
+    // Build active filter tags for display
+    const activeTags = [];
+    if(fFuel!=="All") activeTags.push({label:fFuel, clear:()=>setFFuel("All")});
+    if(fBody!=="All") activeTags.push({label:fBody, clear:()=>setFBody("All")});
+    if(fPrice!=="All") activeTags.push({label:{u15:"Under £15k",u20:"Under £20k",u25:"Under £25k",u30:"Under £30k","25+":"Over £25k","15-25":"£15-25k"}[fPrice], clear:()=>setFPrice("All")});
+    if(fTrans!=="All") activeTags.push({label:fTrans, clear:()=>setFTrans("All")});
+    if(fMiles!=="All") activeTags.push({label:{u10:"Under 10k mi",u20:"Under 20k mi",u30:"Under 30k mi",u50:"Under 50k mi"}[fMiles], clear:()=>setFMiles("All")});
+    if(fYear!=="All") activeTags.push({label:fYear+" onwards", clear:()=>setFYear("All")});
+    if(fInsurance!=="All") activeTags.push({label:{low:"Low insurance",mid:"Mid insurance",high:"High insurance"}[fInsurance], clear:()=>setFInsurance("All")});
+    if(fUlez!=="All") activeTags.push({label:fUlez==="yes"?"ULEZ ✓":"Not ULEZ", clear:()=>setFUlez("All")});
+    if(fColour!=="All") activeTags.push({label:fColour, clear:()=>setFColour("All")});
+    if(fDoors!=="All") activeTags.push({label:fDoors+" door", clear:()=>setFDoors("All")});
+
+    const Sel = ({value, onChange, children, hasValue}) => (
+      <select className={`filter-select${hasValue?" has-value":""}`} value={value} onChange={e=>onChange(e.target.value)}>
+        {children}
+      </select>
     );
 
     return (
     <div className="section" style={{paddingBottom:80}}>
-      <div className="section-head">
-        <div style={{flex:1}}>
-          <div className="section-title">Browse Cars</div>
-          <div className="section-subtitle">
-            {filtered.length} of {V.length} vehicles
-            {aiSearchQuery && <span style={{marginLeft:6,fontStyle:"italic"}}>for "{aiSearchQuery}"</span>}
-            {activeFilterCount > 0 && <span style={{marginLeft:6}}>· {activeFilterCount} filter{activeFilterCount>1?"s":""} active</span>}
+      {/* Header */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+        <div>
+          <div className="section-title" style={{marginBottom:2}}>Browse Cars</div>
+          <div className="text-sm text-muted">
+            <strong>{filtered.length}</strong> of {V.length} vehicles
+            {aiSearchQuery && <> matching "<em>{aiSearchQuery}</em>"</>}
           </div>
         </div>
         <div style={{display:"flex",gap:8}}>
-          {activeFilterCount > 0 && <button className="btn btn-outline btn-sm" onClick={clearAllFilters} style={{fontSize:12,color:"var(--error)",borderColor:"#FECACA"}}>✕ Clear</button>}
           <button className="btn btn-outline btn-sm" onClick={()=>setShowSavedSearches(!showSavedSearches)} style={{fontSize:12}}>
-            🔔 Saved ({savedSearches.length})
+            🔔 {savedSearches.length}
           </button>
           <button className="btn btn-primary btn-sm" onClick={saveCurrentSearch} style={{fontSize:12}}>
-            💾 Save Search
+            💾 Save
           </button>
         </div>
       </div>
 
-      {/* AI Search Query */}
+      {/* AI Search Banner */}
       {aiSearchQuery && (
-        <div className="card mb-3 fade-in" style={{background:"var(--primary-light)",padding:"10px 14px"}}>
-          <div className="flex justify-between items-center">
-            <div><span className="text-xs text-muted">AI Search: </span><span className="text-sm font-bold">"{aiSearchQuery}"</span></div>
-            <button onClick={()=>setAiSearchQuery("")} style={{background:"none",border:"none",cursor:"pointer",fontSize:14}}>✕</button>
+        <div className="fade-in" style={{
+          display:"flex",alignItems:"center",gap:10,padding:"10px 14px",marginBottom:14,
+          background:"linear-gradient(135deg,#EEF2FF,#E0E7FF)",borderRadius:12,
+          border:"1px solid #C7D2FE"
+        }}>
+          <span style={{fontSize:18}}>✨</span>
+          <div style={{flex:1}}>
+            <div className="text-xs text-muted">AI filtered results for</div>
+            <div className="text-sm font-bold" style={{color:"#4338CA"}}>"{aiSearchQuery}"</div>
           </div>
+          <button onClick={()=>{setAiSearchQuery("");clearAllFilters();}} style={{
+            background:"rgba(67,56,202,0.1)",border:"none",borderRadius:8,padding:"6px 10px",
+            cursor:"pointer",fontSize:11,fontWeight:600,color:"#4338CA"
+          }}>Clear</button>
         </div>
       )}
 
       {/* Saved Searches Dropdown */}
       {showSavedSearches && (
-        <div className="card mb-4" style={{animation:"fadeIn 0.2s ease"}}>
+        <div className="card mb-4 fade-in" style={{padding:16}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <div className="label-sm" style={{margin:0}}>Saved Searches</div>
-            <button onClick={()=>setShowSavedSearches(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:16}}>✕</button>
+            <div className="text-sm font-bold">Saved Searches</div>
+            <button onClick={()=>setShowSavedSearches(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:"var(--text-muted)"}}>✕</button>
           </div>
           {savedSearches.length === 0 ? (
-            <div className="text-sm text-muted text-center" style={{padding:16}}>No saved searches yet. Use the filters and tap "Save Search".</div>
+            <div className="text-sm text-muted text-center" style={{padding:20}}>No saved searches yet</div>
           ) : savedSearches.map(s => (
             <div key={s.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid var(--border-light)"}}>
               <div style={{flex:1,cursor:"pointer"}} onClick={()=>{
@@ -2162,79 +2207,131 @@ THE VEHICLE:
                 setShowSavedSearches(false);
               }}>
                 <div className="text-sm font-bold">{s.name}</div>
-                <div className="text-xs text-muted">{s.matchCount} matches · Alerts: {s.alertFreq} · Saved {s.created}</div>
+                <div className="text-xs text-muted">{s.matchCount} matches · {s.alertFreq}</div>
               </div>
-              <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                <select value={s.alertFreq} onChange={e=>setSavedSearches(p=>p.map(x=>x.id===s.id?{...x,alertFreq:e.target.value}:x))} style={{
-                  padding:"3px 6px",borderRadius:6,border:"1px solid var(--border-light)",fontSize:11,background:"white"
-                }}>
-                  <option value="instant">Instant</option>
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="off">Off</option>
-                </select>
-                <button onClick={()=>deleteSearch(s.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"var(--text-muted)"}}>🗑️</button>
-              </div>
+              <button onClick={()=>deleteSearch(s.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"var(--text-muted)"}}>🗑️</button>
             </div>
           ))}
         </div>
       )}
 
-      {/* Primary Filters */}
-      <div className="card mb-3" style={{padding:"14px 16px"}}>
-        <FilterRow label="Fuel" options={["All","Petrol","Diesel","Electric","Hybrid"]} value={fFuel} setter={setFFuel}/>
-        <FilterRow label="Body" options={["All","Hatchback","Saloon","SUV"]} value={fBody} setter={setFBody}/>
-        <FilterRow label="Price" options={[
-          {k:"All",l:"All"},{k:"u15",l:"Under £15k"},{k:"u20",l:"Under £20k"},{k:"u25",l:"Under £25k"},{k:"u30",l:"Under £30k"},{k:"25+",l:"Over £25k"}
-        ]} value={fPrice} setter={setFPrice}/>
-        <FilterRow label="Gearbox" options={["All","Automatic","Manual"]} value={fTrans} setter={setFTrans}/>
-
-        {/* Expandable advanced filters */}
-        {showMoreFilters && (<>
-          <FilterRow label="Mileage" options={[
-            {k:"All",l:"All"},{k:"u10",l:"Under 10k"},{k:"u20",l:"Under 20k"},{k:"u30",l:"Under 30k"},{k:"u50",l:"Under 50k"}
-          ]} value={fMiles} setter={setFMiles}/>
-          <FilterRow label="Year" options={[
-            {k:"All",l:"All"},{k:"2024+",l:"2024+"},{k:"2022+",l:"2022+"},{k:"2020+",l:"2020+"}
-          ]} value={fYear} setter={setFYear}/>
-          <FilterRow label="Insurance" options={[
-            {k:"All",l:"All"},{k:"low",l:"Low (1-15)"},{k:"mid",l:"Mid (16-25)"},{k:"high",l:"High (26+)"}
-          ]} value={fInsurance} setter={setFInsurance}/>
-          <FilterRow label="ULEZ" options={[
-            {k:"All",l:"All"},{k:"yes",l:"✅ Compliant"},{k:"no",l:"❌ Not compliant"}
-          ]} value={fUlez} setter={setFUlez}/>
-          <FilterRow label="Colour" options={["All",...[...new Set(V.map(v=>v.colour))].sort()]} value={fColour} setter={setFColour}/>
-          <FilterRow label="Doors" options={[{k:"All",l:"All"},{k:"3",l:"3 door"},{k:"5",l:"5 door"}]} value={fDoors} setter={setFDoors}/>
-        </>)}
-
-        <button onClick={()=>setShowMoreFilters(!showMoreFilters)} style={{
-          background:"none",border:"none",cursor:"pointer",fontSize:12,fontWeight:600,
-          color:"var(--primary)",padding:"4px 0",marginTop:4
-        }}>
-          {showMoreFilters ? "− Fewer filters" : `+ More filters (mileage, year, insurance, ULEZ, colour...)`}
-        </button>
+      {/* Filter Dropdowns — clean grid */}
+      <div className="filter-grid" style={{marginBottom:12}}>
+        <Sel value={fFuel} onChange={setFFuel} hasValue={fFuel!=="All"}>
+          <option value="All">Any fuel</option>
+          <option value="Petrol">Petrol</option>
+          <option value="Diesel">Diesel</option>
+          <option value="Electric">Electric</option>
+          <option value="Hybrid">Hybrid</option>
+        </Sel>
+        <Sel value={fBody} onChange={setFBody} hasValue={fBody!=="All"}>
+          <option value="All">Any body</option>
+          <option value="Hatchback">Hatchback</option>
+          <option value="Saloon">Saloon</option>
+          <option value="SUV">SUV</option>
+        </Sel>
+        <Sel value={fPrice} onChange={setFPrice} hasValue={fPrice!=="All"}>
+          <option value="All">Any price</option>
+          <option value="u15">Under £15,000</option>
+          <option value="u20">Under £20,000</option>
+          <option value="u25">Under £25,000</option>
+          <option value="u30">Under £30,000</option>
+          <option value="25+">Over £25,000</option>
+        </Sel>
+        <Sel value={fTrans} onChange={setFTrans} hasValue={fTrans!=="All"}>
+          <option value="All">Any gearbox</option>
+          <option value="Automatic">Automatic</option>
+          <option value="Manual">Manual</option>
+        </Sel>
+        {showMoreFilters && <>
+          <Sel value={fMiles} onChange={setFMiles} hasValue={fMiles!=="All"}>
+            <option value="All">Any mileage</option>
+            <option value="u10">Under 10,000</option>
+            <option value="u20">Under 20,000</option>
+            <option value="u30">Under 30,000</option>
+            <option value="u50">Under 50,000</option>
+          </Sel>
+          <Sel value={fYear} onChange={setFYear} hasValue={fYear!=="All"}>
+            <option value="All">Any year</option>
+            <option value="2024+">2024 onwards</option>
+            <option value="2022+">2022 onwards</option>
+            <option value="2020+">2020 onwards</option>
+          </Sel>
+          <Sel value={fInsurance} onChange={setFInsurance} hasValue={fInsurance!=="All"}>
+            <option value="All">Any insurance</option>
+            <option value="low">Low (group 1-15)</option>
+            <option value="mid">Mid (group 16-25)</option>
+            <option value="high">High (group 26+)</option>
+          </Sel>
+          <Sel value={fUlez} onChange={setFUlez} hasValue={fUlez!=="All"}>
+            <option value="All">ULEZ — any</option>
+            <option value="yes">ULEZ compliant</option>
+            <option value="no">Not ULEZ</option>
+          </Sel>
+          <Sel value={fColour} onChange={setFColour} hasValue={fColour!=="All"}>
+            <option value="All">Any colour</option>
+            {[...new Set(V.map(v=>v.colour))].sort().map(c=><option key={c} value={c}>{c}</option>)}
+          </Sel>
+          <Sel value={fDoors} onChange={v=>setFDoors(v)} hasValue={fDoors!=="All"}>
+            <option value="All">Any doors</option>
+            <option value="3">3 door</option>
+            <option value="5">5 door</option>
+          </Sel>
+        </>}
       </div>
 
-      {/* Sort bar */}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",marginBottom:8}}>
-        <div className="text-xs text-muted">{filtered.length} result{filtered.length!==1?"s":""}</div>
-        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-          {[{k:"match",l:"Best Match"},{k:"price-low",l:"Price ↑"},{k:"price-high",l:"Price ↓"},{k:"newest",l:"Newest"},{k:"miles-low",l:"Low Miles"},{k:"deal",l:"Best Deal"},{k:"insurance",l:"Low Insurance"}].map(s=>
-            <button key={s.k} onClick={()=>setFSort(s.k)} style={{
-              padding:"4px 10px",borderRadius:100,border:"none",fontSize:11,fontWeight:600,cursor:"pointer",
-              background:fSort===s.k?"var(--primary)":"#F3F4F6",color:fSort===s.k?"white":"var(--text-muted)"
-            }}>{s.l}</button>
-          )}
+      {/* More/fewer filters toggle */}
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+        <button onClick={()=>setShowMoreFilters(!showMoreFilters)} style={{
+          background:"none",border:"none",cursor:"pointer",fontSize:13,fontWeight:600,
+          color:"var(--primary)",padding:0,display:"flex",alignItems:"center",gap:4
+        }}>
+          {showMoreFilters ? "− Fewer filters" : "+ More filters"}
+        </button>
+        {activeFilterCount > 0 && (
+          <button onClick={clearAllFilters} style={{
+            background:"none",border:"none",cursor:"pointer",fontSize:12,fontWeight:600,
+            color:"var(--error)",padding:0
+          }}>Clear all ({activeFilterCount})</button>
+        )}
+      </div>
+
+      {/* Active filter tags */}
+      {activeTags.length > 0 && (
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:16}}>
+          {activeTags.map((t,i) => (
+            <span key={i} className="filter-tag">
+              {t.label}
+              <button className="filter-tag-x" onClick={t.clear}>✕</button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Sort + results count */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <div className="text-sm text-muted"><strong style={{color:"var(--text)"}}>{filtered.length}</strong> result{filtered.length!==1?"s":""}</div>
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          <span className="text-xs text-muted" style={{marginRight:4}}>Sort:</span>
+          <select className="filter-select" value={fSort} onChange={e=>setFSort(e.target.value)} style={{padding:"6px 28px 6px 10px",fontSize:12}}>
+            <option value="match">Best match</option>
+            <option value="price-low">Price: low to high</option>
+            <option value="price-high">Price: high to low</option>
+            <option value="newest">Newest listed</option>
+            <option value="miles-low">Lowest mileage</option>
+            <option value="deal">Best deal</option>
+            <option value="insurance">Lowest insurance</option>
+          </select>
         </div>
       </div>
 
-      {/* No results */}
+      {/* Results */}
       {filtered.length === 0 ? (
-        <div className="card" style={{textAlign:"center",padding:40}}>
-          <div style={{fontSize:48,marginBottom:12}}>🔍</div>
-          <div className="text-md font-bold mb-2">No cars match your filters</div>
-          <div className="text-sm text-muted mb-4">Try relaxing some filters or clearing the search</div>
-          <button className="btn btn-primary" onClick={clearAllFilters}>Clear all filters</button>
+        <div style={{textAlign:"center",padding:"60px 20px"}}>
+          <div style={{width:64,height:64,borderRadius:16,background:"#F3F4F6",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:28,marginBottom:16}}>🔍</div>
+          <div className="text-md font-bold mb-2">No cars match</div>
+          <div className="text-sm text-muted mb-4">Try removing some filters</div>
+          <button className="btn btn-primary" onClick={clearAllFilters}>Reset filters</button>
         </div>
       ) : (
         <div className="vehicle-grid">{filtered.map(v => VCard({v}))}</div>
