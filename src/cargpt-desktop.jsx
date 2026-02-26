@@ -1241,7 +1241,7 @@ export default function CarGPTDesktop() {
       {title:"CAR CARE",items:[{icon:"🧽",label:"Car Wash Finder",key:"carwash"},{icon:"🔵",label:"Tyre Finder",key:"tyres"},{icon:"🔧",label:"Garage Finder",key:"garagefinder"},{icon:"🛠️",label:"DIY Guides",key:"diy"},{icon:"📦",label:"Parts Prices",key:"parts"}]},
     ];
     return (<>
-      <div className="modal-backdrop" style={{background:"transparent"}} onClick={()=>setShowTools(false)}/>
+      <div style={{position:"fixed",inset:0,zIndex:200,background:"transparent"}} onClick={()=>setShowTools(false)}/>
       <div className="tools-sidebar">
         {sections.map(sec => (
           <div key={sec.title}>
@@ -1261,7 +1261,7 @@ export default function CarGPTDesktop() {
   const NotifPanel = () => {
     if(!showNotifs) return null;
     return (<>
-      <div className="modal-backdrop" style={{background:"transparent"}} onClick={()=>setShowNotifs(false)}/>
+      <div style={{position:"fixed",inset:0,zIndex:150,background:"transparent"}} onClick={()=>setShowNotifs(false)}/>
       <div className="notif-panel">
         <div className="notif-header"><div className="text-md font-bold">Notifications</div></div>
         {NOTIFS.map(n =>
