@@ -433,10 +433,22 @@ input, select, textarea { font-family:var(--font); }
   height:400px; border-radius:var(--radius); display:flex;
   align-items:center; justify-content:center;
   background:linear-gradient(135deg, #F8F9FA, #E9ECEF);
-  overflow:hidden;
+  overflow:hidden; position:relative;
 }
 .detail-hero-img img {
   width:100%; height:100%; object-fit:cover;
+}
+.gallery-dots {
+  display:none; position:absolute; bottom:12px; left:50%;
+  transform:translateX(-50%); display:none;
+  gap:6px; padding:6px 10px; background:rgba(0,0,0,0.4);
+  border-radius:100px; backdrop-filter:blur(4px);
+}
+.gallery-dot { width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,0.5); transition:all 0.2s; }
+.gallery-dot.active { background:white; width:16px; border-radius:3px; }
+@media (max-width:768px) {
+  .detail-hero-img { height:260px; border-radius:12px; }
+  .gallery-dots { display:flex; }
 }
 .detail-sidebar { display:flex; flex-direction:column; gap:16px; }
 .detail-price-card {
@@ -613,12 +625,130 @@ input, select, textarea { font-family:var(--font); }
   .vehicle-grid { grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); }
 }
 @media (max-width:768px) {
-  .navbar { padding:0 16px; }
-  .main-content { padding:0 16px; }
+  /* NAVBAR — compact on mobile */
+  .navbar { padding:0 16px; height:56px; }
   .nav-links { display:none; }
-  .hero-title { font-size:28px; }
-  .slide-over { width:100vw; }
-  .chat-panel { width:calc(100vw - 32px); right:16px; bottom:16px; }
+  .nav-left { gap:12px; }
+  .nav-logo { font-size:20px; }
+  .nav-right { gap:8px; }
+  .nav-btn { width:36px; height:36px; font-size:16px; }
+  .nav-avatar { width:32px; height:32px; font-size:12px; }
+  
+  /* LAYOUT — account for bottom nav */
+  .app-layout { padding-top:56px; padding-bottom:72px; }
+  .main-content { padding:0 16px; }
+  
+  /* HERO — compact */
+  .hero-section { padding:24px 0 20px; }
+  .hero-badge { font-size:11px; }
+  .hero-title { font-size:26px; line-height:1.15; }
+  .hero-sub { font-size:13px; margin-bottom:16px; }
+  .ai-search-box { padding:4px 4px 4px 14px; }
+  .ai-search-input { font-size:16px; } /* prevent iOS zoom */
+  .ai-search-btn { padding:10px 14px; font-size:13px; }
+  .quick-actions { gap:6px; }
+  .quick-action { padding:8px 12px; font-size:12px; }
+  
+  /* TOOLS GRID — 3 columns on mobile */
+  .tools-grid { grid-template-columns:repeat(3, 1fr); gap:8px; }
+  .tool-card { padding:14px 8px; }
+  .tool-card .text-xs { display:none; } /* hide descriptions on mobile */
+  
+  /* VEHICLE GRID */
+  .vehicle-grid { grid-template-columns:1fr; gap:12px; }
+  .vcard-img { height:180px; }
+  
+  /* FILTER BAR */
+  .filter-bar { gap:6px; margin-bottom:14px; }
+  .filter-chip { padding:8px 14px; font-size:12px; }
+  
+  /* SECTION HEADERS */
+  .section-head { margin-bottom:12px; }
+  .section-title { font-size:18px; }
+  
+  /* DETAIL PAGE */
+  .detail-layout { gap:16px; padding:12px 0 80px; }
+  .detail-hero-img { border-radius:12px; }
+  .detail-hero-img img { border-radius:12px; }
+  .info-grid { grid-template-columns:1fr 1fr 1fr; }
+  .info-cell { padding:10px 6px; }
+  .info-val { font-size:13px; }
+  .info-label { font-size:10px; }
+  .tabs { overflow-x:auto; flex-wrap:nowrap; }
+  .tab-btn { white-space:nowrap; font-size:12px; padding:8px 12px; flex-shrink:0; }
+  
+  /* SLIDE-OVER — full screen on mobile */
+  .slide-over { width:100vw; border-radius:0; }
+  .slide-header { padding:16px; }
+  .slide-body { padding:16px; }
+  
+  /* CHAT PANEL — full width above bottom nav on mobile */
+  .chat-panel { width:100vw; right:0; bottom:64px; max-height:calc(100vh - 130px); border-radius:16px 16px 0 0; }
+  .chat-fab { display:none; }
+  
+  /* BUTTONS & INPUTS — touch friendly */
+  .btn { min-height:44px; font-size:14px; }
+  .btn-sm { min-height:38px; }
+  .input, .chat-input { font-size:16px; min-height:44px; } /* 16px prevents iOS zoom */
+  
+  /* TOOLS SIDEBAR — full width on mobile */
+  .tools-sidebar { width:280px; }
+  
+  /* CARDS */
+  .card { padding:14px; }
+  
+  /* NOTIF PANEL */
+  .notif-panel { right:8px; left:8px; width:auto; max-height:70vh; }
+  
+  /* AUTH MODAL */
+  .modal-overlay > div { margin:16px; border-radius:16px !important; }
+
+  /* CHAT ELEMENTS — touch friendly */
+  .chat-qr { padding:10px 16px; font-size:13px; }
+  .chat-bubble { font-size:14px; max-width:90%; }
+  .chat-car-card { min-width:140px; }
+  .chat-input-area { padding:10px 12px; }
+  .btn-mic { width:40px; height:40px; }
+  
+  /* DEALER CHAT in SlideOver */
+  .slide-body .chat-messages { max-height:calc(100vh - 300px); }
+
+  /* GALLERY THUMBNAILS hide on mobile — use swipe dots instead */
+  .gallery-thumbs-row { display:none; }
+  
+  /* Favourite/action buttons — bigger tap targets */
+  .fav-btn { width:42px; height:42px; font-size:18px; }
+}
+
+/* MOBILE BOTTOM NAV */
+.mobile-nav {
+  display:none; position:fixed; bottom:0; left:0; right:0;
+  height:64px; background:rgba(255,255,255,0.95);
+  backdrop-filter:blur(20px) saturate(180%);
+  border-top:1px solid var(--border);
+  z-index:100; padding:0 8px;
+  padding-bottom:env(safe-area-inset-bottom, 0px);
+}
+@media (max-width:768px) {
+  .mobile-nav { display:flex; align-items:center; justify-content:space-around; }
+}
+.mob-tab {
+  display:flex; flex-direction:column; align-items:center; gap:2px;
+  padding:6px 12px; background:none; border:none;
+  cursor:pointer; font-size:10px; font-weight:600;
+  color:var(--text-tertiary); transition:all 0.15s;
+  position:relative; min-width:56px;
+}
+.mob-tab.active { color:var(--primary); }
+.mob-tab-icon { font-size:22px; line-height:1; }
+.mob-tools-btn { display:none; }
+@media (max-width:768px) {
+  .mob-tools-btn { display:flex; }
+}
+.mob-tab-badge {
+  position:absolute; top:2px; right:8px;
+  width:8px; height:8px; border-radius:50%;
+  background:#DC2626;
 }
 `;
 
@@ -888,6 +1018,13 @@ export default function CarGPTDesktop() {
   // Vehicle Detail
   const [detailTab, setDetailTab] = useState("details");
   const [galleryAngle, setGalleryAngle] = useState(1);
+  const galleryAngles = [1,5,9,13,17,21,25,29];
+  const touchStartX = useRef(null);
+  const handleGallerySwipe = (dir) => {
+    const idx = galleryAngles.indexOf(galleryAngle);
+    if (dir === "left" && idx < galleryAngles.length - 1) setGalleryAngle(galleryAngles[idx + 1]);
+    if (dir === "right" && idx > 0) setGalleryAngle(galleryAngles[idx - 1]);
+  };
   const [vMsgs, setVMsgs] = useState([]);
   const [vIn, setVIn] = useState("");
   const [vTyping, setVTyping] = useState(false);
@@ -1479,6 +1616,9 @@ THE VEHICLE:
         </div>
       </div>
       <div className="nav-right">
+        <button className="nav-btn mob-tools-btn" onClick={()=>setShowTools(!showTools)} title="Tools" style={{position:"relative"}}>
+          ☰
+        </button>
         <button className="nav-btn" onClick={()=>setShowNotifs(!showNotifs)} title="Notifications" style={{position:"relative"}}>
           🔔 {unreadCount > 0 && <span style={{position:"absolute",top:2,right:2,width:18,height:18,borderRadius:"50%",background:"#DC2626",color:"white",fontSize:10,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center"}}>{unreadCount}</span>}
         </button>
@@ -1949,8 +2089,16 @@ THE VEHICLE:
         <div className="detail-layout">
           {/* Left column */}
           <div>
-            <div className="detail-hero-img mb-2"><img src={carImg(v.make, v.model, v.year, galleryAngle)} alt={`${v.year} ${v.make} ${v.model}`}/></div>
-            <div style={{display:"flex",gap:8,marginBottom:16,overflowX:"auto",paddingBottom:4}}>
+            <div className="detail-hero-img mb-2"
+              onTouchStart={e=>{ touchStartX.current = e.touches[0].clientX; }}
+              onTouchEnd={e=>{ if(touchStartX.current===null) return; const diff = touchStartX.current - e.changedTouches[0].clientX; if(Math.abs(diff)>50){ handleGallerySwipe(diff>0?"left":"right"); } touchStartX.current=null; }}
+            ><img src={carImg(v.make, v.model, v.year, galleryAngle)} alt={`${v.year} ${v.make} ${v.model}`}/>
+              {/* Mobile swipe dots */}
+              <div className="gallery-dots">
+                {galleryAngles.map(a=><span key={a} className={`gallery-dot${galleryAngle===a?" active":""}`}/>)}
+              </div>
+            </div>
+            <div className="gallery-thumbs-row" style={{display:"flex",gap:8,marginBottom:16,overflowX:"auto",paddingBottom:4}}>
               {[1,5,9,13,17,21,25,29].map(a=>(
                 <div key={a} onClick={()=>setGalleryAngle(a)} style={{
                   width:80,height:52,borderRadius:8,overflow:"hidden",cursor:"pointer",flexShrink:0,
@@ -2752,6 +2900,30 @@ THE VEHICLE:
 
       {/* Active Modal */}
       {renderModalContent()}
+
+      {/* Mobile Bottom Nav */}
+      <nav className="mobile-nav">
+        {[
+          {key:"home",icon:"🏠",label:"Home"},
+          {key:"search",icon:"🔍",label:"Browse"},
+          {key:"chat",icon:"✨",label:"AI Chat"},
+          {key:"messages",icon:"💬",label:"Messages"},
+          {key:"profile",icon:"👤",label:"Profile"},
+        ].map(t => (
+          <button key={t.key} className={`mob-tab ${(t.key==="chat"?chatOpen:t.key===page&&!sel)?"active":""}`}
+            onClick={()=>{
+              if(t.key==="chat"){ setChatOpen(!chatOpen); return; }
+              if((t.key==="messages") && !user){ setAuthModal("login"); return; }
+              if(t.key==="messages") loadConversations();
+              if(t.key==="profile" && !user){ setAuthModal("login"); return; }
+              setChatOpen(false); setSel(null); setPage(t.key==="profile"?"profile":t.key);
+            }}>
+            <span className="mob-tab-icon">{t.icon}</span>
+            {t.label}
+            {t.key==="messages"&&(conversations||[]).some(c=>c.user_unread_count>0)&&<span className="mob-tab-badge"/>}
+          </button>
+        ))}
+      </nav>
 
       {/* Auth Modal — inlined to prevent re-mount on keystroke */}
       {authModal && (
