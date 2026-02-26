@@ -1561,7 +1561,6 @@ THE VEHICLE:
           <button className="ai-search-btn" onClick={()=>{if(voiceActive)stopVoice();sendChat(heroIn);}}>Search with AI</button>
         </div>
         {voiceActive==="main" && <div className="voice-bar"><div className="voice-bar-inner"><div className="voice-wave"/><div className="voice-wave"/><div className="voice-wave"/><div className="voice-wave"/><div className="voice-wave"/></div><span>Listening — speak now...</span><button className="voice-bar-stop" onClick={stopVoice}>Done</button></div>}
-        </div>
         <div className="quick-actions">
           {["I need a family car","Show me EVs","Budget under £15k","What's the best deal?","I'm a new driver","Compare the premium cars"].map(q =>
             <button key={q} className="quick-action" onClick={()=>sendChat(q)}>{q}</button>
