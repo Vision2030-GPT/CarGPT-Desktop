@@ -1,364 +1,3556 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import * as Papa from "papaparse";
-import { Upload, ZoomIn, ZoomOut, RotateCcw, Settings, ChevronDown, ChevronUp, X, Crosshair, List, Maximize2 } from "lucide-react";
-import { XAxis, YAxis, Tooltip, ResponsiveContainer, Area, ComposedChart, Line } from "recharts";
+import { useState, useRef, useEffect, useCallback } from "react";
 
-function mulberry32(seed){let s=seed|0;return()=>{s=(s+0x6d2b79f5)|0;let t=Math.imul(s^(s>>>15),1|s);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
-function seededGaussian(rng){let u,v,s;do{u=rng()*2-1;v=rng()*2-1;s=u*u+v*v;}while(s>=1||s===0);return u*Math.sqrt((-2*Math.log(s))/s);}
-function generateSampleData(count=500,seed=42){
-  const rng=mulberry32(seed);const gauss=()=>seededGaussian(rng);const bars=[];
-  const regimes=[{type:"up",dur:45},{type:"down",dur:55},{type:"flat",dur:25},{type:"up",dur:60},{type:"down",dur:35},{type:"up",dur:40},{type:"flat",dur:30},{type:"down",dur:60},{type:"flat",dur:25},{type:"up",dur:70},{type:"down",dur:30},{type:"up",dur:30}];
-  let price=100,date=new Date("2023-01-01"),rIdx=0,barInRegime=0;
-  for(let i=0;i<count;i++){while(date.getDay()===0||date.getDay()===6)date.setDate(date.getDate()+1);const r=regimes[rIdx%regimes.length];let drift=0,vol=1.5;if(r.type==="up"){drift=0.3+0.2*rng();vol=1.2+rng();}else if(r.type==="down"){drift=-0.35-0.2*rng();vol=1.3+rng();}else{drift=(rng()-0.5)*0.1;vol=0.6+0.5*rng();}const move=drift+gauss()*vol;const open=i===0?price:price+(rng()-0.5)*0.3;const close=open+move;const high=Math.max(open,close)+Math.abs(gauss())*vol*0.5;const low=Math.min(open,close)-Math.abs(gauss())*vol*0.5;bars.push({date:date.toISOString().slice(0,10),open:+open.toFixed(2),high:+high.toFixed(2),low:+Math.max(low,1).toFixed(2),close:+close.toFixed(2)});price=close;barInRegime++;if(barInRegime>=r.dur){barInRegime=0;rIdx++;}date=new Date(date);date.setDate(date.getDate()+1);}
-  return bars;
+// ═══════════════════════════════════════════════════
+// DATA — LOADED FROM SUPABASE (fallback to hardcoded)
+// ═══════════════════════════════════════════════════
+const FALLBACK_V = [
+{id:1,make:"Volkswagen",model:"Golf",variant:"1.5 TSI 150 Life",year:2021,price:18995,mileage:24500,fuel:"Petrol",transmission:"DSG Auto",bodyType:"Hatchback",colour:"Indium Grey",doors:5,engineSize:"1.5L",co2:130,insuranceGroup:15,euroEmissions:"Euro 6d",ulezCompliant:true,taxCost:165,img:"🚗",dealerId:1,daysListed:12,vrm:"AB21 CDE",motExpiry:"2026-03-14",previousKeepers:1,serviceHistory:true,hpiClear:true,matchScore:96,priceRating:"Good Deal",location:"London, E14",features:["Adaptive Cruise","Apple CarPlay","Parking Sensors","LED Headlights","Heated Seats"],specs:{bhp:150,torque:"250 Nm",acceleration:8.5,bootSpace:380,fuelEconomy:47.1},mot:[{date:"2025-03-14",result:"Pass",mileage:21200,advisories:["Front-left tyre slightly worn (minor)"]},{date:"2024-03-10",result:"Pass",mileage:16800,advisories:[]},{date:"2023-03-08",result:"Pass",mileage:11500,advisories:["Nearside brake disc slightly worn"]}]},
+{id:2,make:"BMW",model:"3 Series",variant:"320d M Sport",year:2020,price:22495,mileage:38200,fuel:"Diesel",transmission:"Automatic",bodyType:"Saloon",colour:"Alpine White",doors:4,engineSize:"2.0L",co2:118,insuranceGroup:28,euroEmissions:"Euro 6d",ulezCompliant:true,taxCost:155,img:"🏎️",dealerId:2,daysListed:28,vrm:"CD20 FGH",motExpiry:"2026-01-22",previousKeepers:2,serviceHistory:true,hpiClear:true,matchScore:91,priceRating:"Great Deal",location:"London, NW1",features:["M Sport Body Kit","Sat Nav Pro","Leather Seats","Reverse Camera","Harman Kardon"],specs:{bhp:190,torque:"400 Nm",acceleration:7.1,bootSpace:480,fuelEconomy:55.4},mot:[{date:"2025-01-22",result:"Pass",mileage:35100,advisories:["Rear exhaust slightly corroded"]},{date:"2024-01-18",result:"Pass",mileage:28400,advisories:[]}]},
+{id:3,make:"Tesla",model:"Model 3",variant:"Long Range AWD",year:2022,price:29995,mileage:18300,fuel:"Electric",transmission:"Automatic",bodyType:"Saloon",colour:"Pearl White",doors:4,engineSize:"Electric",co2:0,insuranceGroup:48,euroEmissions:"Zero Emission",ulezCompliant:true,taxCost:0,img:"⚡",dealerId:3,daysListed:5,vrm:"EF22 GHI",motExpiry:"2025-11-30",previousKeepers:1,serviceHistory:true,hpiClear:true,matchScore:88,priceRating:"Fair Price",location:"London, SW19",features:["Autopilot","15\" Touchscreen","Glass Roof","Premium Audio","Sentry Mode"],specs:{bhp:346,torque:"493 Nm",acceleration:4.4,bootSpace:561,fuelEconomy:"4 mi/kWh",batteryCapacity:"75 kWh",range:374},mot:[{date:"2025-11-30",result:"Pass",mileage:16200,advisories:[]}]},
+{id:4,make:"Ford",model:"Focus",variant:"1.0 EcoBoost ST-Line",year:2020,price:13495,mileage:42100,fuel:"Petrol",transmission:"Manual",bodyType:"Hatchback",colour:"Magnetic Grey",doors:5,engineSize:"1.0L",co2:125,insuranceGroup:14,euroEmissions:"Euro 6d",ulezCompliant:true,taxCost:155,img:"🚗",dealerId:4,daysListed:35,vrm:"GH20 JKL",motExpiry:"2026-04-18",previousKeepers:2,serviceHistory:true,hpiClear:true,matchScore:85,priceRating:"Good Deal",location:"Croydon, CR0",features:["ST-Line Body Kit","SYNC 3","B&O Audio","Lane Keep Assist","Auto Headlights"],specs:{bhp:125,torque:"200 Nm",acceleration:10.0,bootSpace:375,fuelEconomy:51.4},mot:[{date:"2025-04-18",result:"Pass",mileage:38900,advisories:["Offside front tyre approaching minimum tread"]},{date:"2024-04-15",result:"Pass",mileage:32100,advisories:["Windscreen wiper worn (minor)"]},{date:"2024-04-12",result:"Fail",mileage:32100,advisories:["Nearside headlamp not working (major)","Windscreen wiper worn (minor)"]}]},
+{id:5,make:"Audi",model:"A3",variant:"35 TFSI S Line",year:2021,price:21995,mileage:29800,fuel:"Petrol",transmission:"S tronic Auto",bodyType:"Hatchback",colour:"Navarra Blue",doors:5,engineSize:"1.5L",co2:132,insuranceGroup:21,euroEmissions:"Euro 6d",ulezCompliant:true,taxCost:165,img:"🏎️",dealerId:1,daysListed:18,vrm:"JK21 MNO",motExpiry:"2026-06-02",previousKeepers:1,serviceHistory:true,hpiClear:true,matchScore:93,priceRating:"Fair Price",location:"London, W1",features:["S Line Interior","Virtual Cockpit","MMI Navigation","Audi Pre Sense","Privacy Glass"],specs:{bhp:150,torque:"250 Nm",acceleration:8.4,bootSpace:380,fuelEconomy:48.7},mot:[{date:"2025-06-02",result:"Pass",mileage:27100,advisories:[]}]},
+{id:6,make:"Mercedes-Benz",model:"A-Class",variant:"A200 AMG Line",year:2021,price:23495,mileage:22100,fuel:"Petrol",transmission:"7G-DCT Auto",bodyType:"Hatchback",colour:"Cosmos Black",doors:5,engineSize:"1.3L",co2:138,insuranceGroup:24,euroEmissions:"Euro 6d",ulezCompliant:true,taxCost:165,img:"🏎️",dealerId:2,daysListed:8,vrm:"LM21 PQR",motExpiry:"2026-07-11",previousKeepers:1,serviceHistory:true,hpiClear:true,matchScore:90,priceRating:"Good Deal",location:"London, EC2",features:["AMG Body Kit","MBUX","Ambient Lighting","Widescreen Cockpit","Keyless Entry"],specs:{bhp:163,torque:"250 Nm",acceleration:8.0,bootSpace:370,fuelEconomy:46.3},mot:[{date:"2025-07-11",result:"Pass",mileage:19800,advisories:["Slight oil leak from engine (advisory)"]}]},
+{id:7,make:"Toyota",model:"Yaris",variant:"1.5 Hybrid Design",year:2022,price:16995,mileage:15200,fuel:"Hybrid",transmission:"CVT Auto",bodyType:"Hatchback",colour:"Tokyo Red",doors:5,engineSize:"1.5L",co2:92,insuranceGroup:10,euroEmissions:"Euro 6d",ulezCompliant:true,taxCost:0,img:"🚗",dealerId:3,daysListed:14,vrm:"NP22 STU",motExpiry:"2025-09-28",previousKeepers:1,serviceHistory:true,hpiClear:true,matchScore:82,priceRating:"Fair Price",location:"Richmond, TW9",features:["Hybrid System","Toyota Safety Sense","8\" Touchscreen","Wireless Charging","Auto Climate"],specs:{bhp:116,torque:"120 Nm",acceleration:9.7,bootSpace:286,fuelEconomy:68.9},mot:[{date:"2025-09-28",result:"Pass",mileage:13100,advisories:[]}]},
+{id:8,make:"Kia",model:"Sportage",variant:"1.6 T-GDi HEV GT-Line S",year:2023,price:31995,mileage:8400,fuel:"Hybrid",transmission:"Automatic",bodyType:"SUV",colour:"Runway Red",doors:5,engineSize:"1.6L",co2:135,insuranceGroup:22,euroEmissions:"Euro 6d",ulezCompliant:true,taxCost:165,img:"🚙",dealerId:4,daysListed:3,vrm:"QR23 VWX",motExpiry:"2026-08-15",previousKeepers:1,serviceHistory:true,hpiClear:true,matchScore:87,priceRating:"Fair Price",location:"Wimbledon, SW19",features:["7-Year Warranty","Panoramic Roof","12.3\" Dual Screens","360° Camera","Heated/Ventilated Seats"],specs:{bhp:230,torque:"350 Nm",acceleration:8.0,bootSpace:591,fuelEconomy:47.9},mot:[{date:"2025-08-15",result:"Pass",mileage:5200,advisories:[]}]},
+];
+const FALLBACK_D = [
+{id:1,name:"Hilton Car Supermarket",location:"London, E14",rating:4.8,reviews:342,responseTime:"< 15 min",trustScore:95},
+{id:2,name:"Premium Motors London",location:"London, NW1",rating:4.6,reviews:218,responseTime:"< 30 min",trustScore:88},
+{id:3,name:"Electric Avenue Cars",location:"London, SW19",rating:4.9,reviews:156,responseTime:"< 10 min",trustScore:97},
+{id:4,name:"South London Motors",location:"Croydon, CR0",rating:4.5,reviews:287,responseTime:"< 20 min",trustScore:85},
+];
+const NOTIFS_SEED = [
+{id:1,type:"price_drop",title:"Price dropped!",desc:"BMW 320d M Sport now £22,495 (was £23,995)",time:"2h ago",read:false,vehicleIdx:1,icon:"🔻",color:"#DC2626"},
+{id:2,type:"new_match",title:"New match found",desc:"2021 Audi A3 S Line matches 'Hatchback under £25k'",time:"4h ago",read:false,vehicleIdx:4,icon:"🆕",color:"#2563EB"},
+{id:3,type:"agent",title:"Deal Hunter found something",desc:"Great deal on Golf GTI — £1,200 below market",time:"1d ago",read:true,icon:"🤖",color:"#7C3AED"},
+{id:4,type:"mot_reminder",title:"MOT due in 31 days",desc:"Your VW Golf (AB21 CDE) MOT expires 14 Mar 2026",time:"1d ago",read:false,icon:"📋",color:"#D97706"},
+{id:5,type:"saved_search",title:"3 new cars match your search",desc:"'Electric under £35k' — Tesla, MG4 & Polestar listed today",time:"6h ago",read:false,icon:"🔔",color:"#059669"},
+{id:6,type:"dealer_response",title:"Dealer replied",desc:"Hilton Car Supermarket responded to your enquiry",time:"3h ago",read:false,icon:"💬",color:"#2563EB"},
+{id:7,type:"price_drop",title:"Watching: Kia Sportage",desc:"Price reduced £500 to £31,495 — 3 days on market",time:"5h ago",read:true,vehicleIdx:7,icon:"🔻",color:"#DC2626"},
+];
+const REVIEWS_SEED = [
+{id:1,dealerId:1,author:"James T.",rating:5,date:"2026-01-15",verified:true,text:"Brilliant experience. Smooth process from viewing to collection. No pressure at all and the car was exactly as described. Would 100% buy from Hilton again."},
+{id:2,dealerId:1,author:"Sarah M.",rating:4,date:"2025-12-08",verified:true,text:"Good selection of cars and fair prices. The salesperson was helpful though it took a bit longer than expected to get the finance sorted."},
+{id:3,dealerId:1,author:"David K.",rating:5,date:"2025-11-20",verified:true,text:"Third car I've bought from Hilton. They always go the extra mile. Full service history checked, HPI clear, and even threw in a valet."},
+{id:4,dealerId:2,author:"Emma R.",rating:4,date:"2026-01-22",verified:true,text:"Really transparent pricing — the car was listed at a fair price and they didn't try to upsell. Quick response to my messages too."},
+{id:5,dealerId:2,author:"Chris L.",rating:3,date:"2025-10-14",verified:false,text:"Car was fine but the handover felt rushed. Would have liked more time to go through features. Average experience overall."},
+{id:6,dealerId:3,author:"Tom H.",rating:5,date:"2026-02-01",verified:true,text:"Best EV dealer in London. Incredibly knowledgeable about charging, range, and running costs. Made the switch to electric stress-free."},
+{id:7,dealerId:3,author:"Lisa W.",rating:5,date:"2026-01-28",verified:true,text:"Amazing service. They even helped me set up my home charger installer. The Tesla was in immaculate condition."},
+];
+const GARAGE = [{id:101,make:"Volkswagen",model:"Golf",variant:"1.5 TSI Life",year:2021,vrm:"AB21 CDE",colour:"Indium Grey",mileage:24500,motExpiry:"2026-03-14",taxExpiry:"2026-04-01",value:18500,img:"🚗",services:[{date:"2025-08-12",type:"Full Service",garage:"Halfords Autocentre",cost:189},{date:"2024-12-01",type:"MOT + Service",garage:"VW Main Dealer",cost:295},{date:"2024-03-10",type:"Annual Service",garage:"Halfords Autocentre",cost:169}]}];
+const EXPENSES=[{month:"Jan",fuel:142,insurance:0,tax:0,mot:0,service:0,parking:45,tolls:5,other:12},{month:"Feb",fuel:128,insurance:52,tax:0,mot:0,service:0,parking:38,tolls:5,other:8},{month:"Mar",fuel:155,insurance:52,tax:0,mot:45,service:189,parking:52,tolls:10,other:15},{month:"Apr",fuel:138,insurance:52,tax:165,mot:0,service:0,parking:42,tolls:5,other:22},{month:"May",fuel:145,insurance:52,tax:0,mot:0,service:0,parking:55,tolls:15,other:10},{month:"Jun",fuel:162,insurance:52,tax:0,mot:0,service:0,parking:48,tolls:5,other:18}];
+const BIK_DATA=[{name:"Tesla Model 3 LR",co2:0,p11d:42990,type:"EV",bikRate:3},{name:"BMW 320d M Sport",co2:118,p11d:38850,type:"Diesel",bikRate:31},{name:"VW Golf 1.5 TSI",co2:130,p11d:27610,type:"Petrol",bikRate:32},{name:"Toyota Yaris Hybrid",co2:92,p11d:22810,type:"Hybrid",bikRate:24},{name:"Audi A3 35 TFSI",co2:132,p11d:32280,type:"Petrol",bikRate:32},{name:"Kia Sportage HEV",co2:135,p11d:35400,type:"Hybrid",bikRate:33}];
+const WARNING_LIGHTS=[{icon:"🔴",name:"Engine (Check Engine)",severity:"Medium-High",meaning:"Engine fault detected. Could be minor sensor or serious issue.",action:"Safe to drive short distance. Book diagnostic ASAP.",cost:"£50-£500+"},{icon:"🔴",name:"Oil Pressure",severity:"Critical",meaning:"Oil pressure dangerously low. Engine damage imminent.",action:"STOP immediately. Do NOT continue driving.",cost:"£100-£3,000+"},{icon:"🟡",name:"Battery / Charging",severity:"Medium",meaning:"Battery not charging properly. Alternator or battery failing.",action:"Drive to garage. May stop suddenly.",cost:"£80-£350"},{icon:"🔴",name:"Brake System",severity:"Critical",meaning:"Brake fluid low or brake system fault.",action:"STOP when safe. Check fluid level. Do not drive.",cost:"£100-£400"},{icon:"🟡",name:"Tyre Pressure (TPMS)",severity:"Low",meaning:"One or more tyres below recommended pressure.",action:"Safe to drive to nearest garage. Check pressures.",cost:"Free-£5 (air)"},{icon:"🟡",name:"ABS Warning",severity:"Medium",meaning:"Anti-lock braking system fault. Normal brakes still work.",action:"Drive carefully. ABS won't activate in emergency.",cost:"£100-£300"},{icon:"🟡",name:"Engine Temperature",severity:"High",meaning:"Engine overheating. Coolant level or thermostat issue.",action:"Pull over. Let engine cool. Check coolant.",cost:"£50-£500"},{icon:"🟢",name:"Diesel Particulate Filter",severity:"Low",meaning:"DPF needs regeneration. Short journeys clogging filter.",action:"Take a 30-min motorway drive at 60+mph.",cost:"£100-£1,500 if blocked"}];
+const THEORY_QS=[{q:"What's the minimum tread depth for car tyres?",opts:["1.0mm","1.6mm","2.0mm","2.5mm"],correct:1},{q:"You're driving at 70mph on a motorway. What's the minimum safe gap in dry conditions?",opts:["1 second","2 seconds","3 seconds","4 seconds"],correct:1},{q:"What should you do at a pelican crossing when the amber light is flashing?",opts:["Stop and wait","Accelerate through","Give way to pedestrians on the crossing","Flash your headlights"],correct:2},{q:"You've just passed your test. How many penalty points will result in your licence being revoked?",opts:["3 points","6 points","9 points","12 points"],correct:1},{q:"What's the national speed limit on a single carriageway for cars?",opts:["50mph","60mph","70mph","80mph"],correct:1}];
+const ACCIDENT_STEPS=[{title:"Are you safe?",icon:"🆘",items:["Turn on hazard lights","Turn off engine if safe","Check yourself & passengers for injuries","If anyone is hurt, call 999 immediately","If on motorway, get behind barrier"],action:"I'm safe — next step"},{title:"Secure the scene",icon:"⚠️",items:["Set up warning triangle 45m behind car","Wear high-vis if you have one","Do NOT stand between vehicles","If blocking road, move cars if safe to do so","Note exact location (road name, landmark)"],action:"Scene secured"},{title:"Exchange details",icon:"📋",items:["Name & address of other driver(s)","Vehicle registration number(s)","Insurance company & policy number","Phone number of other driver(s)","Note: make, model, colour of other car(s)"],action:"Details collected"},{title:"Gather evidence",icon:"📸",items:["Photograph all vehicle damage (all angles)","Photograph the road layout & positions","Capture road signs, markings, conditions","Get witness names & phone numbers","Note weather, lighting, road surface"],action:"Evidence captured"},{title:"Report & claim",icon:"📞",items:["Report to police if injury or road blocked","Report to insurer within 24 hours","You MUST report within 24h if you didn't exchange details at scene","Keep all receipts for expenses","Do NOT admit fault to anyone"],action:"Understood — show contacts"}];
+
+const fmt = p => `£${p.toLocaleString()}`;
+const fmtMi = m => `${m.toLocaleString()} mi`;
+const carImg = (make, model, year, angle = 1) => `https://cdn.imagin.studio/getimage?customer=img&make=${encodeURIComponent(make)}&modelFamily=${encodeURIComponent(model.split(" ")[0])}&modelYear=${year}&angle=${angle}&width=800`;
+
+// ═══════════════════════════════════════════════════
+// STYLES
+// ═══════════════════════════════════════════════════
+const css = `
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --bg: #F7F8FA;
+  --surface: #FFFFFF;
+  --surface-hover: #F0F2F5;
+  --border: #E8ECF0;
+  --border-light: #F0F2F5;
+  --text: #1A1D21;
+  --text-secondary: #6B7280;
+  --text-tertiary: #9CA3AF;
+  --primary: #2563EB;
+  --primary-light: #EFF6FF;
+  --primary-dark: #1D4ED8;
+  --success: #059669;
+  --success-light: #ECFDF5;
+  --warning: #D97706;
+  --warning-light: #FFFBEB;
+  --error: #DC2626;
+  --error-light: #FEF2F2;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --radius-xs: 6px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
+  --shadow-xl: 0 16px 48px rgba(0,0,0,0.1), 0 4px 12px rgba(0,0,0,0.05);
+  --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// GRID ENGINE (Spec §5.2, eqs 5.8–5.14)
-// ═══════════════════════════════════════════════════════════════════════════════
-function createGridEngine(P0,PH,PL,params){
-  const{phi,theta,u,d,n,alpha}=params;
-  const phiR=(phi*Math.PI)/180,thetaR=(theta*Math.PI)/180;
-  const dP=PH-PL; if(dP<=0)return null;
-  const norm=alpha/(n-1);
-  // Slopes: βU and βD include α/(n-1) normalization (spec eqs 5.2, 5.5)
-  const betaU=norm*Math.tan(thetaR);
-  // D-line angle = (θ-ϕ) from horizontal: negative when ϕ>θ = downward ✓
-  const betaD=norm*Math.tan(thetaR-phiR);
-  // hU,hD from Appendix A (eqs A.7,A.8) are in chart units where 1 unit = α/(n-1)·ΔP
-  // Multiply by norm to convert to ΔP fractions for use in eqs 5.8-5.9
-  const hU=(d*Math.sin(phiR))/Math.cos(thetaR)*norm;
-  const hD=(u*Math.sin(phiR))/Math.cos(phiR-thetaR)*norm;
-  // Spec eqs 5.8-5.9
-  const U=(lambda,j)=>P0+(lambda*hU+j*betaU)*dP;
-  const D=(lambda,j)=>P0+(lambda*hD+j*betaD)*dP;
-  return{U,D,betaU,betaD,hU,hD,dP,P0,PH,PL,n};
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; }
+::selection { background:var(--primary); color:white; }
+input, select, textarea { font-family:var(--font); }
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:#D1D5DB; border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:#9CA3AF; }
+
+/* NAVBAR */
+.navbar {
+  position:fixed; top:0; left:0; right:0; z-index:100;
+  height:64px; background:rgba(255,255,255,0.85);
+  backdrop-filter:blur(20px) saturate(180%);
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 32px;
+}
+.nav-left { display:flex; align-items:center; gap:32px; }
+.nav-logo {
+  font-size:22px; font-weight:800; letter-spacing:-0.5px;
+  display:flex; align-items:center; gap:2px; cursor:pointer;
+}
+.nav-logo span { color:var(--primary); }
+.nav-links { display:flex; gap:4px; }
+.nav-link {
+  padding:8px 16px; border-radius:var(--radius-sm); font-size:14px;
+  font-weight:600; color:var(--text-secondary); background:none; border:none;
+  cursor:pointer; transition:all 0.15s;
+}
+.nav-link:hover { color:var(--text); background:var(--surface-hover); }
+.nav-link.active { color:var(--primary); background:var(--primary-light); }
+.nav-right { display:flex; align-items:center; gap:12px; }
+.nav-btn {
+  width:40px; height:40px; border-radius:50%; background:none; border:none;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  font-size:18px; transition:all 0.15s; position:relative; color:var(--text-secondary);
+}
+.nav-btn:hover { background:var(--surface-hover); color:var(--text); }
+.nav-badge {
+  position:absolute; top:4px; right:4px;
+  width:8px; height:8px; border-radius:50%;
+  background:var(--error); border:2px solid white;
+}
+.nav-avatar {
+  width:36px; height:36px; border-radius:50%;
+  background:linear-gradient(135deg, var(--primary), #7C3AED);
+  color:white; font-weight:700; font-size:14px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; transition:transform 0.15s;
+}
+.nav-avatar:hover { transform:scale(1.05); }
+
+/* LAYOUT */
+.app-layout { padding-top:64px; min-height:100vh; }
+.main-content { max-width:1400px; margin:0 auto; padding:0 32px; }
+
+/* HERO AI SECTION */
+.hero-section {
+  padding:48px 0 32px; text-align:center;
+}
+.hero-badge {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:6px 16px; border-radius:100px;
+  background:var(--primary-light); color:var(--primary);
+  font-size:13px; font-weight:600; margin-bottom:16px;
+  border:1px solid rgba(37,99,235,0.15);
+}
+.hero-badge-dot {
+  width:6px; height:6px; border-radius:50%;
+  background:var(--primary); animation:pulse-dot 2s infinite;
+}
+@keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+.hero-title {
+  font-size:40px; font-weight:800; letter-spacing:-1px;
+  line-height:1.15; margin-bottom:12px;
+  background:linear-gradient(135deg, var(--text) 0%, #374151 100%);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+}
+.hero-sub {
+  font-size:17px; color:var(--text-secondary);
+  max-width:520px; margin:0 auto 28px; line-height:1.5;
 }
 
-function getEps(v,e){return e*Math.abs(v);}
-function isTouch(bar,gv,ep){const e=getEps(gv,ep);return bar.low-e<=gv&&gv<=bar.high+e;}
-function isBreakU(bar,gv){return bar.low>gv;}function isBreakD(bar,gv){return bar.high<gv;}
-function isRetraceU(bar,gv){return bar.high>gv;}function isRetraceD(bar,gv){return bar.low<gv;}
-function runO1(bars,i,n){const s=Math.max(0,i-n+1);let mL=Infinity,mH=-Infinity;for(let j=s;j<=i;j++){mL=Math.min(mL,bars[j].low);mH=Math.max(mH,bars[j].high);}if(bars[i].low<=mL)return{P0:bars[i].low,PH:mH,PL:bars[i].low,barIndex:i,type:"O1"};return null;}
-function runO2(bars,i,n){const s=Math.max(0,i-n+1);let mL=Infinity,mH=-Infinity;for(let j=s;j<=i;j++){mL=Math.min(mL,bars[j].low);mH=Math.max(mH,bars[j].high);}if(bars[i].high>=mH)return{P0:bars[i].high,PH:bars[i].high,PL:mL,barIndex:i,type:"O2"};return null;}
+/* AI CHAT INPUT — HERO */
+.ai-search-box {
+  max-width:680px; margin:0 auto;
+  background:var(--surface); border:2px solid var(--border);
+  border-radius:var(--radius); padding:6px 6px 6px 20px;
+  display:flex; align-items:center; gap:8px;
+  transition:all 0.25s; box-shadow:var(--shadow);
+}
+.ai-search-box:focus-within {
+  border-color:var(--primary);
+  box-shadow:0 0 0 4px rgba(37,99,235,0.1), var(--shadow-md);
+}
+.ai-search-icon { font-size:20px; flex-shrink:0; }
+.ai-search-input {
+  flex:1; border:none; background:none; outline:none;
+  font-size:16px; color:var(--text); font-weight:500;
+}
+.ai-search-input::placeholder { color:var(--text-tertiary); font-weight:400; }
+.ai-search-btn {
+  padding:10px 24px; border-radius:var(--radius-sm);
+  background:var(--primary); color:white; border:none;
+  font-weight:700; font-size:14px; cursor:pointer;
+  transition:all 0.15s; white-space:nowrap;
+}
+.ai-search-btn:hover { background:var(--primary-dark); }
+.ai-search-btn:disabled { opacity:0.5; cursor:not-allowed; }
 
-const STRATEGY_DEFS={
-  S2:{id:"S2",name:"Buy-and-hold",orig:"O1",dir:"BUY",confirmType:"retrace",confirmLine:{f:"U",l:1},entryLine:{f:"U",l:0},tpLine:{f:"U",l:1},slLine:{f:"U",l:-1},touchNum:1},
-  S3:{id:"S3",name:"Buy 2nd touch",orig:"O1",dir:"BUY",confirmType:"retrace",confirmLine:{f:"U",l:1},entryLine:{f:"U",l:0},tpLine:{f:"U",l:1},slLine:{f:"U",l:-1},touchNum:2},
-  S4:{id:"S4",name:"Buy 3rd touch",orig:"O1",dir:"BUY",confirmType:"retrace",confirmLine:{f:"U",l:1},entryLine:{f:"U",l:0},tpLine:{f:"U",l:1},slLine:{f:"U",l:-1},touchNum:3},
-  S5:{id:"S5",name:"Sell-and-hold",orig:"O2",dir:"SELL",confirmType:"retrace",confirmLine:{f:"D",l:-1},entryLine:{f:"D",l:0},tpLine:{f:"D",l:-1},slLine:{f:"D",l:1},touchNum:1},
-  S6:{id:"S6",name:"Sell 2nd touch",orig:"O2",dir:"SELL",confirmType:"retrace",confirmLine:{f:"D",l:-1},entryLine:{f:"D",l:0},tpLine:{f:"D",l:-1},slLine:{f:"D",l:1},touchNum:2},
-  S7:{id:"S7",name:"Sell 3rd touch",orig:"O2",dir:"SELL",confirmType:"retrace",confirmLine:{f:"D",l:-1},entryLine:{f:"D",l:0},tpLine:{f:"D",l:-1},slLine:{f:"D",l:1},touchNum:3},
-  S8:{id:"S8",name:"Sell ext target",orig:"O2",dir:"SELL",confirmType:"retrace",confirmLine:{f:"D",l:-1},entryLine:{f:"D",l:0},tpLine:{f:"D",l:-2},slLine:{f:"D",l:1},touchNum:1},
-  S9:{id:"S9",name:"Sell NO retrace",orig:"O2",dir:"SELL",confirmType:"breaks",confirmLine:{f:"D",l:-1},entryLine:{f:"D",l:-1},tpLine:{f:"D",l:-2},slLine:{f:"D",l:0},touchNum:1},
-  S10:{id:"S10",name:"Buy NO retrace",orig:"O1",dir:"BUY",confirmType:"breaks",confirmLine:{f:"U",l:1},entryLine:{f:"U",l:1},tpLine:{f:"U",l:2},slLine:{f:"U",l:0},touchNum:1},
-  S11:{id:"S11",name:"Sell ext retrace",orig:"O2",dir:"SELL",confirmType:"retrace",confirmLine:{f:"D",l:-2},entryLine:{f:"D",l:-1},tpLine:{f:"D",l:-2},slLine:{f:"D",l:0},touchNum:1},
-  S12:{id:"S12",name:"Buy ext retrace",orig:"O1",dir:"BUY",confirmType:"retrace",confirmLine:{f:"U",l:2},entryLine:{f:"U",l:1},tpLine:{f:"U",l:2},slLine:{f:"U",l:0},touchNum:1},
+/* QUICK ACTIONS */
+.quick-actions {
+  display:flex; justify-content:center; gap:8px;
+  margin-top:16px; flex-wrap:wrap;
+}
+.quick-action {
+  padding:8px 18px; border-radius:100px;
+  background:var(--surface); border:1px solid var(--border);
+  font-size:13px; font-weight:600; color:var(--text-secondary);
+  cursor:pointer; transition:all 0.15s;
+}
+.quick-action:hover { border-color:var(--primary); color:var(--primary); background:var(--primary-light); }
+
+/* SECTION */
+.section { padding:32px 0; }
+.section-head {
+  display:flex; justify-content:space-between; align-items:center;
+  margin-bottom:20px;
+}
+.section-title { font-size:22px; font-weight:800; letter-spacing:-0.3px; }
+.section-subtitle { font-size:14px; color:var(--text-secondary); margin-top:2px; }
+.section-link {
+  font-size:14px; font-weight:600; color:var(--primary);
+  background:none; border:none; cursor:pointer;
+  display:flex; align-items:center; gap:4px;
+}
+.section-link:hover { text-decoration:underline; }
+
+/* FILTER BAR */
+.filter-bar {
+  display:flex; gap:8px; margin-bottom:20px;
+  overflow-x:auto; padding-bottom:4px;
+}
+.filter-chip {
+  padding:8px 18px; border-radius:100px;
+  background:var(--surface); border:1px solid var(--border);
+  font-size:13px; font-weight:600; color:var(--text-secondary);
+  cursor:pointer; transition:all 0.15s; white-space:nowrap;
+}
+.filter-chip.active {
+  background:var(--text); color:white; border-color:var(--text);
+}
+.filter-chip:hover:not(.active) { border-color:#9CA3AF; }
+
+/* VEHICLE GRID */
+.vehicle-grid {
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));
+  gap:20px;
+}
+.vcard {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); overflow:hidden;
+  cursor:pointer; transition:all 0.2s; position:relative;
+}
+.vcard:hover { box-shadow:var(--shadow-md); transform:translateY(-2px); border-color:#D1D5DB; }
+.vcard-img {
+  height:200px; display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(135deg, #F8F9FA 0%, #E9ECEF 100%);
+  position:relative; overflow:hidden;
+}
+.vcard-img img {
+  width:100%; height:100%; object-fit:cover;
+  transition:transform 0.3s ease;
+}
+.vcard:hover .vcard-img img { transform:scale(1.05); }
+.vcard-match {
+  position:absolute; top:12px; left:12px;
+  padding:4px 10px; border-radius:100px;
+  background:var(--primary); color:white;
+  font-size:12px; font-weight:700;
+}
+.vcard-fav {
+  position:absolute; top:12px; right:12px;
+  width:36px; height:36px; border-radius:50%;
+  background:rgba(255,255,255,0.9); border:none;
+  cursor:pointer; font-size:16px; display:flex;
+  align-items:center; justify-content:center;
+  backdrop-filter:blur(8px); transition:all 0.15s;
+}
+.vcard-fav:hover { transform:scale(1.1); }
+.vcard-body { padding:16px; }
+.vcard-title { font-size:16px; font-weight:700; margin-bottom:2px; }
+.vcard-variant { font-size:13px; color:var(--text-secondary); margin-bottom:8px; }
+.vcard-price { font-size:20px; font-weight:800; color:var(--primary); margin-bottom:10px; }
+.vcard-meta { display:flex; gap:12px; font-size:12px; color:var(--text-secondary); margin-bottom:10px; }
+.vcard-badges { display:flex; gap:6px; flex-wrap:wrap; }
+
+/* BADGES */
+.badge {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:4px 10px; border-radius:100px;
+  font-size:12px; font-weight:600;
+}
+.badge-green { background:var(--success-light); color:var(--success); }
+.badge-blue { background:var(--primary-light); color:var(--primary); }
+.badge-yellow { background:var(--warning-light); color:var(--warning); }
+.badge-red { background:var(--error-light); color:var(--error); }
+.badge-gray { background:#F3F4F6; color:var(--text-secondary); }
+
+/* CHAT PANEL */
+.chat-panel {
+  position:fixed; bottom:24px; right:32px; z-index:80;
+  width:420px; max-height:calc(100vh - 112px);
+  background:var(--surface); border-radius:var(--radius);
+  border:1px solid var(--border); box-shadow:var(--shadow-xl);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+@keyframes slideUpChat { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+.chat-header {
+  padding:16px 20px; border-bottom:1px solid var(--border);
+  display:flex; justify-content:space-between; align-items:center;
+}
+.chat-header-title { font-size:16px; font-weight:700; display:flex; align-items:center; gap:8px; }
+.chat-header-dot { width:8px; height:8px; border-radius:50%; background:#10B981; }
+.chat-close {
+  width:32px; height:32px; border-radius:50%;
+  background:none; border:none; cursor:pointer;
+  font-size:18px; color:var(--text-secondary);
+  display:flex; align-items:center; justify-content:center;
+}
+.chat-close:hover { background:var(--surface-hover); }
+.chat-messages { flex:1; overflow-y:auto; padding:16px 20px; min-height:300px; max-height:400px; }
+.chat-msg { margin-bottom:12px; display:flex; flex-direction:column; animation:fadeIn 0.2s ease; }
+.chat-msg.user { align-items:flex-end; }
+.chat-msg.user .chat-bubble { background:var(--primary); color:white; border-radius:var(--radius) var(--radius) 4px var(--radius); }
+.chat-bubble {
+  background:#F3F4F6; border-radius:var(--radius) var(--radius) var(--radius) 4px;
+  padding:12px 16px; max-width:85%; font-size:14px; line-height:1.6;
+}
+.chat-cars { display:flex; gap:8px; overflow-x:auto; margin-top:8px; padding-bottom:4px; }
+.chat-car-card {
+  min-width:160px; padding:12px; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius-sm); cursor:pointer; transition:all 0.15s; flex-shrink:0;
+}
+.chat-car-card:hover { border-color:var(--primary); }
+.chat-quick-replies { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+.chat-qr {
+  padding:6px 14px; border-radius:100px;
+  background:var(--surface); border:1px solid var(--border);
+  font-size:12px; font-weight:600; color:var(--text-secondary);
+  cursor:pointer; transition:all 0.15s;
+}
+.chat-qr:hover { border-color:var(--primary); color:var(--primary); }
+.chat-input-area {
+  padding:12px 16px; border-top:1px solid var(--border);
+  display:flex; gap:8px; align-items:center;
+}
+.chat-input {
+  flex:1; border:1px solid var(--border); border-radius:100px;
+  padding:10px 16px; font-size:14px; outline:none; background:var(--bg);
+}
+.chat-input:focus { border-color:var(--primary); background:white; }
+.chat-send {
+  width:36px; height:36px; border-radius:50%;
+  background:var(--primary); color:white; border:none;
+  cursor:pointer; font-size:16px; display:flex;
+  align-items:center; justify-content:center;
+  transition:all 0.15s;
+}
+.chat-send:hover { background:var(--primary-dark); }
+.btn-mic {
+  width:36px; height:36px; border-radius:50%;
+  background:var(--surface); border:1.5px solid var(--border);
+  cursor:pointer; display:flex;
+  align-items:center; justify-content:center;
+  transition:all 0.2s; flex-shrink:0; color:var(--text-secondary);
+}
+.btn-mic:hover { border-color:var(--primary); color:var(--primary); background:rgba(66,133,244,0.06); }
+.btn-mic.active {
+  background:#DC2626; border-color:#DC2626; color:white;
+  animation:micPulse 1.5s infinite;
+}
+.hero-mic { width:34px; height:34px; background:transparent; border:none; }
+.hero-mic:hover { background:rgba(66,133,244,0.08); border-radius:50%; }
+.hero-mic.active { background:#DC2626; border-radius:50%; color:white; border:none; animation:micPulse 1.5s infinite; }
+.chat-mic { background:transparent; border:none; width:32px; height:32px; }
+.chat-mic:hover { background:rgba(66,133,244,0.08); border-radius:50%; }
+.chat-mic.active { background:#DC2626; border-radius:50%; color:white; animation:micPulse 1.5s infinite; }
+@keyframes micPulse { 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,0.3)} 50%{box-shadow:0 0 0 8px rgba(220,38,38,0)} }
+.voice-listening { border-color:#DC2626 !important; box-shadow:0 0 0 3px rgba(220,38,38,0.12) !important; }
+.typing-dots { display:flex; gap:4px; padding:4px 0; }
+.typing-dot {
+  width:7px; height:7px; border-radius:50%;
+  background:var(--text-tertiary); animation:bounce 1.4s infinite;
+}
+.typing-dot:nth-child(2){animation-delay:0.2s}
+.typing-dot:nth-child(3){animation-delay:0.4s}
+@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}
+
+/* CHAT FAB */
+.chat-fab {
+  position:fixed; bottom:24px; right:32px; z-index:80;
+  width:60px; height:60px; border-radius:50%;
+  background:linear-gradient(135deg, var(--primary), #7C3AED);
+  color:white; border:none; cursor:pointer;
+  font-size:24px; display:flex; align-items:center;
+  justify-content:center; box-shadow:var(--shadow-lg);
+  transition:all 0.2s;
+}
+.chat-fab:hover { transform:scale(1.08); box-shadow:var(--shadow-xl); }
+
+/* SLIDE-OVER MODAL */
+.modal-backdrop {
+  position:fixed; inset:0; z-index:200;
+  background:rgba(0,0,0,0.25); backdrop-filter:blur(2px);
+  animation:fadeIn 0.2s ease;
+}
+.slide-over {
+  position:fixed; top:0; right:0; bottom:0; z-index:201;
+  width:min(520px, 100vw); background:var(--surface);
+  border-left:1px solid var(--border);
+  box-shadow:var(--shadow-xl);
+  overflow-y:auto; animation:slideInRight 0.3s ease;
+}
+@keyframes slideInRight { from{transform:translateX(100%)} to{transform:translateX(0)} }
+.slide-header {
+  position:sticky; top:0; z-index:10;
+  padding:20px 24px; background:rgba(255,255,255,0.95);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  display:flex; justify-content:space-between; align-items:center;
+}
+.slide-title { font-size:18px; font-weight:800; }
+.slide-close {
+  width:36px; height:36px; border-radius:50%;
+  background:var(--surface-hover); border:none; cursor:pointer;
+  font-size:18px; display:flex; align-items:center; justify-content:center;
+}
+.slide-close:hover { background:#E5E7EB; }
+.slide-body { padding:24px; }
+
+/* DETAIL PAGE */
+.detail-layout { display:grid; grid-template-columns:1fr 400px; gap:32px; padding:24px 0 80px; }
+.detail-hero-img {
+  height:400px; border-radius:var(--radius); display:flex;
+  align-items:center; justify-content:center;
+  background:linear-gradient(135deg, #F8F9FA, #E9ECEF);
+  overflow:hidden; position:relative;
+}
+.detail-hero-img img {
+  width:100%; height:100%; object-fit:cover;
+}
+.gallery-dots {
+  display:none; position:absolute; bottom:12px; left:50%;
+  transform:translateX(-50%); display:none;
+  gap:6px; padding:6px 10px; background:rgba(0,0,0,0.4);
+  border-radius:100px; backdrop-filter:blur(4px);
+}
+.gallery-dot { width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,0.5); transition:all 0.2s; }
+.gallery-dot.active { background:white; width:16px; border-radius:3px; }
+@media (max-width:768px) {
+  .detail-hero-img { height:260px; border-radius:12px; }
+  .gallery-dots { display:flex; }
+}
+.detail-sidebar { display:flex; flex-direction:column; gap:16px; }
+.detail-price-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); padding:24px;
+}
+.detail-price { font-size:28px; font-weight:800; color:var(--primary); margin-bottom:4px; }
+.detail-actions-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:16px; }
+
+/* BUTTONS */
+.btn {
+  padding:10px 20px; border-radius:var(--radius-sm);
+  font-weight:700; font-size:14px; cursor:pointer;
+  border:none; transition:all 0.15s; display:inline-flex;
+  align-items:center; justify-content:center; gap:6px;
+}
+.btn-primary { background:var(--primary); color:white; }
+.btn-primary:hover { background:var(--primary-dark); }
+.btn-secondary { background:var(--surface-hover); color:var(--text); }
+.btn-secondary:hover { background:#E5E7EB; }
+.btn-outline { background:none; border:1px solid var(--border); color:var(--text); }
+.btn-outline:hover { border-color:var(--primary); color:var(--primary); }
+.btn-block { width:100%; }
+.btn-sm { padding:8px 14px; font-size:13px; border-radius:var(--radius-xs); }
+.btn-lg { padding:14px 28px; font-size:16px; }
+
+/* CARD */
+.card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); padding:16px; transition:all 0.15s;
+}
+.card-clickable { cursor:pointer; }
+.card-clickable:hover { box-shadow:var(--shadow); border-color:#D1D5DB; }
+
+/* INFO GRID */
+.info-grid { display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--border); border-radius:var(--radius-sm); overflow:hidden; }
+.info-cell { background:var(--surface); padding:14px; text-align:center; }
+.info-val { font-size:16px; font-weight:700; }
+.info-label { font-size:12px; color:var(--text-secondary); margin-top:2px; }
+
+/* INPUT */
+.input {
+  width:100%; padding:12px 16px; border:1px solid var(--border);
+  border-radius:var(--radius-sm); font-size:14px; outline:none;
+  background:var(--surface); color:var(--text); transition:border-color 0.15s;
+}
+.input:focus { border-color:var(--primary); }
+.input-mono { font-family:monospace; font-weight:700; text-transform:uppercase; letter-spacing:2px; }
+
+/* PROGRESS */
+.progress { height:6px; background:var(--border-light); border-radius:3px; overflow:hidden; }
+.progress-fill { height:100%; background:var(--primary); border-radius:3px; transition:width 0.5s ease; }
+
+/* TAB SWITCHER */
+.tabs { display:flex; gap:2px; background:var(--bg); padding:3px; border-radius:var(--radius-sm); }
+.tab-btn {
+  flex:1; padding:8px 16px; border-radius:8px;
+  font-size:13px; font-weight:600; color:var(--text-secondary);
+  background:none; border:none; cursor:pointer; transition:all 0.15s;
+}
+.tab-btn.active { background:var(--surface); color:var(--text); box-shadow:var(--shadow-sm); }
+
+/* STEP ITEMS */
+.step-item { display:flex; gap:12px; padding:10px 0; align-items:flex-start; }
+.step-dot {
+  width:24px; height:24px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:11px; flex-shrink:0; font-weight:700;
+}
+.step-done { background:var(--success); color:white; }
+.step-active { background:var(--primary); color:white; animation:pulse-dot 1.5s infinite; }
+.step-pending { background:var(--border); color:var(--text-tertiary); }
+
+/* TOOLS GRID */
+.tools-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:12px; margin-top:12px; }
+.tool-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius-sm); padding:16px; text-align:center;
+  cursor:pointer; transition:all 0.15s;
+}
+.tool-card:hover { border-color:var(--primary); box-shadow:var(--shadow); transform:translateY(-1px); }
+.tool-icon { font-size:28px; margin-bottom:8px; }
+.tool-label { font-size:13px; font-weight:700; }
+.tool-desc { font-size:11px; color:var(--text-secondary); margin-top:2px; }
+
+/* SIDEBAR NAV (TOOLS) */
+.tools-sidebar {
+  position:fixed; left:0; top:64px; bottom:0;
+  width:240px; background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto; z-index:201; padding:16px 0;
+  animation:slideInLeft 0.25s ease;
+}
+@keyframes slideInLeft { from{transform:translateX(-100%)} to{transform:translateX(0)} }
+.tools-section-title {
+  font-size:11px; font-weight:700; color:var(--text-tertiary);
+  text-transform:uppercase; letter-spacing:1px;
+  padding:12px 16px 4px;
+}
+.tools-item {
+  display:flex; align-items:center; gap:10px;
+  width:100%; padding:10px 16px; background:none; border:none;
+  color:var(--text-secondary); cursor:pointer; font-size:13px;
+  font-weight:600; transition:all 0.1s; text-align:left;
+}
+.tools-item:hover { background:var(--surface-hover); color:var(--text); }
+.tools-item.active { background:var(--primary-light); color:var(--primary); }
+.tools-item-icon { font-size:16px; width:24px; text-align:center; }
+
+/* NOTIFICATION PANEL */
+.notif-panel {
+  position:fixed; top:64px; right:32px; z-index:151;
+  width:360px; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); box-shadow:var(--shadow-xl);
+  animation:fadeIn 0.2s ease; overflow:hidden;
+}
+.notif-header { padding:16px 20px; border-bottom:1px solid var(--border); }
+.notif-item {
+  padding:14px 20px; border-bottom:1px solid var(--border-light);
+  cursor:pointer; transition:background 0.1s;
+}
+.notif-item:hover { background:var(--surface-hover); }
+
+/* ANIMATIONS */
+@keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+@keyframes slideUp { from{opacity:0;transform:translateY(40px)} to{opacity:1;transform:translateY(0)} }
+.modal-overlay {
+  position:fixed; top:0; left:0; right:0; bottom:0;
+  background:rgba(0,0,0,0.5); backdrop-filter:blur(4px);
+  display:flex; align-items:center; justify-content:center;
+  padding:20px; z-index:10000;
+}
+.fade-in { animation:fadeIn 0.25s ease; }
+
+/* UTILS */
+.flex { display:flex; }
+.flex-col { flex-direction:column; }
+.gap-1 { gap:4px; }
+.gap-2 { gap:8px; }
+.gap-3 { gap:12px; }
+.gap-4 { gap:16px; }
+.items-center { align-items:center; }
+.justify-between { justify-content:space-between; }
+.justify-center { justify-content:center; }
+.flex-1 { flex:1; }
+.flex-wrap { flex-wrap:wrap; }
+.text-xs { font-size:12px; }
+.text-sm { font-size:13px; }
+.text-md { font-size:15px; }
+.text-lg { font-size:18px; }
+.font-bold { font-weight:700; }
+.font-extra { font-weight:800; }
+.text-muted { color:var(--text-secondary); }
+.text-primary { color:var(--primary); }
+.text-success { color:var(--success); }
+.text-error { color:var(--error); }
+.text-center { text-align:center; }
+.mb-1 { margin-bottom:4px; }
+.mb-2 { margin-bottom:8px; }
+.mb-3 { margin-bottom:12px; }
+.mb-4 { margin-bottom:16px; }
+.mt-2 { margin-top:8px; }
+.mt-3 { margin-top:12px; }
+.mt-4 { margin-top:16px; }
+.p-3 { padding:12px; }
+.p-4 { padding:16px; }
+.w-full { width:100%; }
+.label-sm { font-size:11px; font-weight:700; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px; }
+.divider { height:1px; background:var(--border); margin:16px 0; }
+
+/* RESPONSIVE */
+@media (max-width:1024px) {
+  .detail-layout { grid-template-columns:1fr; }
+  .vehicle-grid { grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); }
+}
+@media (max-width:768px) {
+  /* NAVBAR — compact on mobile */
+  .navbar { padding:0 16px; height:56px; }
+  .nav-links { display:none; }
+  .nav-left { gap:12px; }
+  .nav-logo { font-size:20px; }
+  .nav-right { gap:8px; }
+  .nav-btn { width:36px; height:36px; font-size:16px; }
+  .nav-avatar { width:32px; height:32px; font-size:12px; }
+  
+  /* LAYOUT — account for bottom nav */
+  .app-layout { padding-top:56px; padding-bottom:72px; }
+  .main-content { padding:0 16px; }
+  
+  /* HERO — compact */
+  .hero-section { padding:24px 0 20px; }
+  .hero-badge { font-size:11px; }
+  .hero-title { font-size:26px; line-height:1.15; }
+  .hero-sub { font-size:13px; margin-bottom:16px; }
+  .ai-search-box { padding:4px 4px 4px 14px; }
+  .ai-search-input { font-size:16px; } /* prevent iOS zoom */
+  .ai-search-btn { padding:10px 14px; font-size:13px; }
+  .quick-actions { gap:6px; }
+  .quick-action { padding:8px 12px; font-size:12px; }
+  
+  /* TOOLS GRID — 3 columns on mobile */
+  .tools-grid { grid-template-columns:repeat(3, 1fr); gap:8px; }
+  .tool-card { padding:14px 8px; }
+  .tool-card .text-xs { display:none; } /* hide descriptions on mobile */
+  
+  /* VEHICLE GRID */
+  .vehicle-grid { grid-template-columns:1fr; gap:12px; }
+  .vcard-img { height:180px; }
+  
+  /* FILTER BAR */
+  .filter-bar { gap:6px; margin-bottom:14px; }
+  .filter-chip { padding:8px 14px; font-size:12px; }
+  
+  /* SECTION HEADERS */
+  .section-head { margin-bottom:12px; }
+  .section-title { font-size:18px; }
+  
+  /* DETAIL PAGE */
+  .detail-layout { gap:16px; padding:12px 0 80px; }
+  .detail-hero-img { border-radius:12px; }
+  .detail-hero-img img { border-radius:12px; }
+  .info-grid { grid-template-columns:1fr 1fr 1fr; }
+  .info-cell { padding:10px 6px; }
+  .info-val { font-size:13px; }
+  .info-label { font-size:10px; }
+  .tabs { overflow-x:auto; flex-wrap:nowrap; }
+  .tab-btn { white-space:nowrap; font-size:12px; padding:8px 12px; flex-shrink:0; }
+  
+  /* SLIDE-OVER — full screen on mobile */
+  .slide-over { width:100vw; border-radius:0; }
+  .slide-header { padding:16px; }
+  .slide-body { padding:16px; }
+  
+  /* CHAT PANEL — full width above bottom nav on mobile */
+  .chat-panel { width:100vw; right:0; bottom:64px; max-height:calc(100vh - 130px); border-radius:16px 16px 0 0; }
+  .chat-fab { display:none; }
+  
+  /* BUTTONS & INPUTS — touch friendly */
+  .btn { min-height:44px; font-size:14px; }
+  .btn-sm { min-height:38px; }
+  .input, .chat-input { font-size:16px; min-height:44px; } /* 16px prevents iOS zoom */
+  
+  /* TOOLS SIDEBAR — full width on mobile */
+  .tools-sidebar { width:280px; }
+  
+  /* CARDS */
+  .card { padding:14px; }
+  
+  /* NOTIF PANEL */
+  .notif-panel { right:8px; left:8px; width:auto; max-height:70vh; }
+  
+  /* AUTH MODAL */
+  .modal-overlay > div { margin:16px; border-radius:16px !important; }
+
+  /* CHAT ELEMENTS — touch friendly */
+  .chat-qr { padding:10px 16px; font-size:13px; }
+  .chat-bubble { font-size:14px; max-width:90%; }
+  .chat-car-card { min-width:140px; }
+  .chat-input-area { padding:10px 12px; }
+  .btn-mic { width:40px; height:40px; }
+  
+  /* DEALER CHAT in SlideOver */
+  .slide-body .chat-messages { max-height:calc(100vh - 300px); }
+
+  /* GALLERY THUMBNAILS hide on mobile — use swipe dots instead */
+  .gallery-thumbs-row { display:none; }
+  
+  /* Favourite/action buttons — bigger tap targets */
+  .fav-btn { width:42px; height:42px; font-size:18px; }
+}
+
+/* MOBILE BOTTOM NAV */
+.mobile-nav {
+  display:none; position:fixed; bottom:0; left:0; right:0;
+  height:64px; background:rgba(255,255,255,0.95);
+  backdrop-filter:blur(20px) saturate(180%);
+  border-top:1px solid var(--border);
+  z-index:100; padding:0 8px;
+  padding-bottom:env(safe-area-inset-bottom, 0px);
+}
+@media (max-width:768px) {
+  .mobile-nav { display:flex; align-items:center; justify-content:space-around; }
+}
+.mob-tab {
+  display:flex; flex-direction:column; align-items:center; gap:2px;
+  padding:6px 12px; background:none; border:none;
+  cursor:pointer; font-size:10px; font-weight:600;
+  color:var(--text-tertiary); transition:all 0.15s;
+  position:relative; min-width:56px;
+}
+.mob-tab.active { color:var(--primary); }
+.mob-tab-icon { font-size:22px; line-height:1; }
+.mob-tools-btn { display:none; }
+@media (max-width:768px) {
+  .mob-tools-btn { display:flex; }
+}
+.mob-tab-badge {
+  position:absolute; top:2px; right:8px;
+  width:8px; height:8px; border-radius:50%;
+  background:#DC2626;
+}
+`;
+
+// ═══════════════════════════════════════════════════
+// MAIN APP COMPONENT
+// ═══════════════════════════════════════════════════
+// ═══ SlideOver Component (stable reference — outside main component) ═══
+const SlideOver = ({show, onClose, title, children}) => {
+  if(!show) return null;
+  return (<>
+    <div className="modal-backdrop" onClick={onClose}/>
+    <div className="slide-over">
+      <div className="slide-header">
+        <div className="slide-title">{title}</div>
+        <button className="slide-close" onClick={onClose}>✕</button>
+      </div>
+      <div className="slide-body">{children}</div>
+    </div>
+  </>);
 };
-function getGridLineVal(g,ld,j){return ld.f==="U"?g.U(ld.l,j):g.D(ld.l,j);}
-function simulateFill(bar,op,dir,mode,nb){if(bar.low<=op&&op<=bar.high){if(mode==="W")return dir==="BUY"?bar.high:bar.low;if(mode==="A")return(bar.high+bar.low)/2;if(mode==="N"&&nb)return nb.open;return dir==="BUY"?bar.high:bar.low;}if((dir==="BUY"&&bar.low>op)||(dir==="SELL"&&bar.high<op))return bar.open;return null;}
 
-function runBacktest(bars,params,enStrats,emsMode){
-  const{n,epsilon,nu,kappa,mu}=params;const ops=[],trades=[],events=[];let opC=0,ai=[];
-  const addEv=(bar,type,msg)=>events.push({barIdx:bar,date:bars[bar]?.date||"",type,msg});
-  addEv(Math.max(0,n-1),"system","Backtest started");
-  for(let i=n-1;i<bars.length;i++){const b=bars[i];
-    for(const oId of["O1","O2"]){const om=oId==="O1"?runO1(bars,i,n):runO2(bars,i,n);if(!om)continue;for(const op of ops){if(op.originator===oId&&op.state==="PENDING"&&om.P0!==op.P0){op.state="INVALIDATED";op.endBar=i;ai=ai.filter(x=>x.opId!==op.id);}}opC++;const nOp={id:opC,...om,originator:oId,state:"PENDING",detectedBar:i,confirmedBar:null,endBar:null,grid:createGridEngine(om.P0,om.PH,om.PL,params)};ops.push(nOp);addEv(i,"op",`${oId}: OP #${nOp.id} at ${om.P0.toFixed(2)}`);for(const sId of enStrats){const sd=STRATEGY_DEFS[sId];if(sd.orig!==oId)continue;ai.push({id:trades.length+ai.length+1,stratId:sId,opId:nOp.id,op:nOp,state:"WC",tc:0,bc:0,cb:null,eb:null,ep:null,xb:null,xp:null,xt:null,bW:0,bA:0});}}
-    const rm=new Set();for(let si=0;si<ai.length;si++){const inst=ai[si];const op=inst.op;const grid=op.grid;if(!grid){rm.add(si);continue;}const sd=STRATEGY_DEFS[inst.stratId];const j=i-op.barIndex;
-      if(inst.state==="WC"){inst.bW++;if(inst.bW>(nu||n)){if(op.state==="PENDING"){op.state="CANCELLED";op.endBar=i;}rm.add(si);continue;}const cv=getGridLineVal(grid,sd.confirmLine,j);if(sd.confirmType==="retrace"){if(sd.confirmLine.f==="U"?isRetraceU(b,cv):isRetraceD(b,cv)){inst.state="WE";inst.cb=i;if(op.state==="PENDING"){op.state="CONFIRMED";op.confirmedBar=i;addEv(i,"op",`OP #${op.id}: CONFIRMED`);}}}else{if(sd.confirmLine.f==="U"?isBreakU(b,cv):isBreakD(b,cv))inst.bc++;else inst.bc=0;if(inst.bc>=(mu||2)){inst.state="WE";inst.cb=i;if(op.state==="PENDING"){op.state="CONFIRMED";op.confirmedBar=i;}}}}
-      else if(inst.state==="WE"){inst.bA++;if(inst.bA>(kappa||n)){if(op.state==="CONFIRMED"){op.state="EXPIRED";op.endBar=i;}rm.add(si);continue;}const eV=getGridLineVal(grid,sd.entryLine,j),tV=getGridLineVal(grid,sd.tpLine,j),sV=getGridLineVal(grid,sd.slLine,j);if(b.low<=eV&&eV<=b.high&&((b.low<=tV&&tV<=b.high)||(b.low<=sV&&sV<=b.high))){trades.push({...inst,xt:"FAIL",xb:i,eb:i});rm.add(si);continue;}if(isTouch(b,eV,epsilon)){inst.tc++;if(inst.tc>=sd.touchNum){const fill=simulateFill(b,eV,sd.dir,emsMode,bars[i+1]);if(fill!==null){inst.eb=i;inst.ep=+fill.toFixed(2);inst.state="IT";addEv(i,"trade",`${sd.id}: ${sd.dir} ENTRY at ${fill.toFixed(2)}`);}}}}
-      else if(inst.state==="IT"){const tV=getGridLineVal(grid,sd.tpLine,j),sV=getGridLineVal(grid,sd.slLine,j);const spTP=b.low<=tV&&tV<=b.high,spSL=b.low<=sV&&sV<=b.high;if(spTP&&spSL){trades.push({...inst,xt:"FAIL",xb:i});rm.add(si);continue;}if(spTP||(sd.dir==="BUY"?b.low>tV:b.high<tV)){const fill=spTP?simulateFill(b,tV,sd.dir==="BUY"?"SELL":"BUY",emsMode,bars[i+1]):b.open;inst.xb=i;inst.xp=+(fill||b.open).toFixed(2);inst.xt="TP";trades.push({...inst});rm.add(si);continue;}if(spSL||(sd.dir==="BUY"?b.high<sV:b.low>sV)){const fill=spSL?simulateFill(b,sV,sd.dir==="BUY"?"SELL":"BUY",emsMode,bars[i+1]):b.open;inst.xb=i;inst.xp=+(fill||b.open).toFixed(2);inst.xt="SL";trades.push({...inst});rm.add(si);continue;}}}
-    if(rm.size>0)ai=ai.filter((_,idx)=>!rm.has(idx));}
-  addEv(bars.length-1,"system",`Done: ${trades.filter(t=>t.xt!=="FAIL").length} trades`);return{ops,trades,events,activeInstances:ai};
-}
+export default function CarGPTDesktop() {
+  // ═══ DATABASE STATE ═══
+  const [V, setV] = useState(FALLBACK_V);
+  const [D, setD] = useState(FALLBACK_D);
+  const [dbLoaded, setDbLoaded] = useState(false);
 
-function createSimState(p,es,em){return{ops:[],trades:[],events:[],activeInstances:[],opCounter:0,currentBar:p.n-1,params:p,enabledStrategies:es,emsMode:em};}
-function simProcessBar(st,bars,ti){const{params,enabledStrategies:es,emsMode:em}=st;const{n,epsilon,nu,kappa,mu}=params;const i=ti;if(i<n-1||i>=bars.length)return st;const b=bars[i];const nE=[];const ae=(t,m)=>nE.push({barIdx:i,date:b.date,type:t,msg:m});let{ops,trades,activeInstances:ai,opCounter:opC}=st;ops=[...ops];trades=[...trades];ai=[...ai];
-for(const oId of["O1","O2"]){const om=oId==="O1"?runO1(bars,i,n):runO2(bars,i,n);if(!om)continue;for(let oi=0;oi<ops.length;oi++){if(ops[oi].originator===oId&&ops[oi].state==="PENDING"&&om.P0!==ops[oi].P0){ops[oi]={...ops[oi],state:"INVALIDATED",endBar:i};ai=ai.filter(x=>x.opId!==ops[oi].id);}}opC++;const nOp={id:opC,...om,originator:oId,state:"PENDING",detectedBar:i,confirmedBar:null,endBar:null,grid:createGridEngine(om.P0,om.PH,om.PL,params)};ops.push(nOp);ae("op",`${oId}: OP #${nOp.id}`);for(const sId of es){const sd=STRATEGY_DEFS[sId];if(sd.orig!==oId)continue;ai.push({id:trades.length+ai.length+1,stratId:sId,opId:nOp.id,op:nOp,state:"WC",tc:0,bc:0,cb:null,eb:null,ep:null,xb:null,xp:null,xt:null,bW:0,bA:0});}}
-const rm=new Set();for(let si=0;si<ai.length;si++){const inst={...ai[si]};ai[si]=inst;const op=ops.find(o=>o.id===inst.opId);const grid=op?.grid;if(!grid){rm.add(si);continue;}const sd=STRATEGY_DEFS[inst.stratId];const j=i-op.barIndex;
-if(inst.state==="WC"){inst.bW++;if(inst.bW>(nu||n)){if(op.state==="PENDING"){const oi=ops.indexOf(op);ops[oi]={...op,state:"CANCELLED",endBar:i};}rm.add(si);continue;}const cv=getGridLineVal(grid,sd.confirmLine,j);if(sd.confirmType==="retrace"){if(sd.confirmLine.f==="U"?isRetraceU(b,cv):isRetraceD(b,cv)){inst.state="WE";inst.cb=i;if(op.state==="PENDING"){const oi=ops.indexOf(op);ops[oi]={...op,state:"CONFIRMED",confirmedBar:i};ae("op",`OP #${op.id}: CONFIRMED`);}}}else{if(sd.confirmLine.f==="U"?isBreakU(b,cv):isBreakD(b,cv))inst.bc++;else inst.bc=0;if(inst.bc>=(mu||2)){inst.state="WE";inst.cb=i;if(op.state==="PENDING"){const oi=ops.indexOf(op);ops[oi]={...op,state:"CONFIRMED",confirmedBar:i};}}}}
-else if(inst.state==="WE"){inst.bA++;if(inst.bA>(kappa||n)){if(op.state==="CONFIRMED"){const oi=ops.indexOf(op);ops[oi]={...op,state:"EXPIRED",endBar:i};}rm.add(si);continue;}const eV=getGridLineVal(grid,sd.entryLine,j),tV=getGridLineVal(grid,sd.tpLine,j),sV=getGridLineVal(grid,sd.slLine,j);if(b.low<=eV&&eV<=b.high&&((b.low<=tV&&tV<=b.high)||(b.low<=sV&&sV<=b.high))){trades.push({...inst,xt:"FAIL",xb:i,eb:i});rm.add(si);continue;}if(isTouch(b,eV,epsilon)){inst.tc++;if(inst.tc>=sd.touchNum){const fill=simulateFill(b,eV,sd.dir,em,bars[i+1]);if(fill!==null){inst.eb=i;inst.ep=+fill.toFixed(2);inst.state="IT";ae("trade",`${sd.id}: ${sd.dir} at ${fill.toFixed(2)}`);}}}}
-else if(inst.state==="IT"){const tV=getGridLineVal(grid,sd.tpLine,j),sV=getGridLineVal(grid,sd.slLine,j);const spTP=b.low<=tV&&tV<=b.high,spSL=b.low<=sV&&sV<=b.high;if(spTP&&spSL){trades.push({...inst,xt:"FAIL",xb:i});rm.add(si);continue;}if(spTP||(sd.dir==="BUY"?b.low>tV:b.high<tV)){const fill=spTP?simulateFill(b,tV,sd.dir==="BUY"?"SELL":"BUY",em,bars[i+1]):b.open;inst.xb=i;inst.xp=+(fill||b.open).toFixed(2);inst.xt="TP";trades.push({...inst});rm.add(si);continue;}if(spSL||(sd.dir==="BUY"?b.high<sV:b.low>sV)){const fill=spSL?simulateFill(b,sV,sd.dir==="BUY"?"SELL":"BUY",em,bars[i+1]):b.open;inst.xb=i;inst.xp=+(fill||b.open).toFixed(2);inst.xt="SL";trades.push({...inst});rm.add(si);continue;}}}
-if(rm.size>0)ai=ai.filter((_,idx)=>!rm.has(idx));return{...st,ops,trades,activeInstances:ai,opCounter:opC,currentBar:i,events:[...st.events,...nE]};}
+  // ═══ FETCH FROM DATABASE ═══
+  useEffect(() => {
+    const fuelMap = {petrol:"Petrol",diesel:"Diesel",electric:"Electric",hybrid:"Hybrid",plug_in_hybrid:"Plug-in Hybrid"};
+    const transMap = {manual:"Manual",automatic:"Automatic"};
+    const bodyMap = {hatchback:"Hatchback",saloon:"Saloon",suv:"SUV",estate:"Estate",coupe:"Coupe",convertible:"Convertible",mpv:"MPV",van:"Van",pickup:"Pickup",other:"Other"};
+    const imgMap = {electric:"⚡",suv:"🚙",saloon:"🏎️",hatchback:"🚗",estate:"🚗",coupe:"🏎️"};
+    fetch("/api/vehicles").then(r=>r.json()).then(data=>{
+      if(!data.vehicles?.length) return;
+      const cars = data.vehicles.map((v,i) => ({
+        id: v.id,
+        make: v.make,
+        model: v.model,
+        variant: v.variant || "",
+        year: v.year,
+        price: v.price,
+        mileage: v.mileage,
+        fuel: fuelMap[v.fuel_type] || v.fuel_type,
+        transmission: v.transmission === "automatic" ? "Automatic" : "Manual",
+        bodyType: bodyMap[v.body_type] || v.body_type,
+        colour: v.colour,
+        doors: v.doors,
+        engineSize: v.engine_size || "",
+        co2: v.co2_emissions || 0,
+        insuranceGroup: v.insurance_group || 0,
+        euroEmissions: v.euro_emissions || "",
+        ulezCompliant: v.ulez_compliant !== false,
+        taxCost: v.tax_cost || 0,
+        img: imgMap[v.fuel_type] || imgMap[v.body_type] || "🚗",
+        dealerId: v.dealer_id,
+        daysListed: v.days_listed || 0,
+        vrm: v.vrm,
+        motExpiry: v.mot_expiry || "",
+        previousKeepers: v.previous_keepers || 1,
+        serviceHistory: v.service_history === "full",
+        hpiClear: v.hpi_clear !== false,
+        matchScore: 95 - (i * 3),
+        priceRating: v.price_indicator || "Good Deal",
+        location: v.dealer ? `${v.dealer.city || "London"}, ${v.dealer.postcode || ""}` : "London",
+        features: v.features || [],
+        specs: {
+          bhp: v.bhp || 0,
+          torque: v.torque || "",
+          acceleration: v.acceleration || 0,
+          bootSpace: v.boot_space || 0,
+          fuelEconomy: v.fuel_economy || "",
+          batteryCapacity: v.battery_capacity || null,
+          range: v.electric_range || null,
+        },
+        mot: v.mot || [],
+        description: v.description || "",
+        images: v.images || [],
+      }));
+      const dealers = (data.dealers || []).map(d => ({
+        id: d.id,
+        name: d.name,
+        location: `${d.city || "London"}, ${d.postcode || ""}`,
+        rating: parseFloat(d.rating) || 4.5,
+        reviews: d.review_count || 0,
+        responseTime: d.response_time || "< 2 hours",
+        trustScore: d.trust_score || 80,
+      }));
+      setV(cars);
+      setD(dealers);
+      setDbLoaded(true);
+      console.log(`✅ Loaded ${cars.length} vehicles, ${dealers.length} dealers from database`);
+    }).catch(e => console.warn("DB fetch failed, using fallback data:", e.message));
+  }, []);
 
-function computeAnalytics(trades){const c=trades.filter(t=>t.xt==="TP"||t.xt==="SL");const f=trades.filter(t=>t.xt==="FAIL");if(c.length===0)return{totalTrades:0,wins:0,losses:0,winRate:0,totalPnL:0,avgPnL:0,profitFactor:0,maxDD:0,sharpe:0,avgBarsHeld:0,fails:f.length,equityCurve:[]};const pnls=c.map(t=>{const sd=STRATEGY_DEFS[t.stratId];return sd.dir==="BUY"?t.xp-t.ep:t.ep-t.xp;});const w=pnls.filter(p=>p>0),l=pnls.filter(p=>p<=0);const tot=pnls.reduce((a,b)=>a+b,0);const gP=w.reduce((a,b)=>a+b,0),gL=Math.abs(l.reduce((a,b)=>a+b,0));let eq=0,pk=0,mDD=0;const eqC=c.map((_,idx)=>{eq+=pnls[idx];pk=Math.max(pk,eq);mDD=Math.max(mDD,pk-eq);return{idx:idx+1,equity:+eq.toFixed(2),drawdown:+(-(pk-eq)).toFixed(2)};});const mean=tot/pnls.length;const vr=pnls.reduce((s,p)=>s+(p-mean)**2,0)/pnls.length;const bH=c.filter(t=>t.eb!=null&&t.xb!=null).map(t=>t.xb-t.eb);return{totalTrades:c.length,wins:w.length,losses:l.length,winRate:+(w.length/c.length*100).toFixed(1),totalPnL:+tot.toFixed(2),avgPnL:+(tot/c.length).toFixed(2),profitFactor:gL>0?+(gP/gL).toFixed(2):gP>0?Infinity:0,maxDD:+mDD.toFixed(2),sharpe:+(vr>0?mean/Math.sqrt(vr):0).toFixed(3),avgBarsHeld:+(bH.length>0?bH.reduce((a,b)=>a+b,0)/bH.length:0).toFixed(1),fails:f.length,equityCurve:eqC};}
-const PRESETS={default:{phi:58,theta:45,u:15.4,d:16.2,n:125,alpha:1.414,epsilon:0.001,nu:125,kappa:125,mu:2},tight:{phi:45,theta:30,u:10,d:10.6,n:80,alpha:1.2,epsilon:0.0005,nu:80,kappa:80,mu:2},wide:{phi:65,theta:35,u:22,d:23.4,n:200,alpha:2.0,epsilon:0.002,nu:200,kappa:200,mu:3}};
+  // ═══ AUTH STATE ═══
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authModal, setAuthModal] = useState(null); // null | "login" | "signup"
+  const [authError, setAuthError] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// GRID DRAWING — Mathematical bar-by-bar using spec formulas U_λ(j) and D_λ(j)
-// Plots the actual grid price values at each bar index — simplest, most reliable
-// ═══════════════════════════════════════════════════════════════════════════════
-function drawGrid(ctx, grid, opBarIndex, start, end, barWidth, leftPad, yScale, minP, maxP, chartH, topPad, rightEdge) {
-  if (!grid) return;
-  const dP = grid.dP;
-  const priceRange = maxP - minP;
-  if (priceRange <= 0 || dP <= 0) return;
-
-  // How many lambda lines needed to fill the visible price range
-  const hUprice = Math.abs(grid.hU * dP);
-  const hDprice = Math.abs(grid.hD * dP);
-  const maxLamU = hUprice > 0.001 ? Math.ceil(priceRange / hUprice) + 8 : 15;
-  const maxLamD = hDprice > 0.001 ? Math.ceil(priceRange / hDprice) + 8 : 15;
-
-  const xB = (idx) => leftPad + (idx - start) * barWidth + barWidth / 2;
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(leftPad, topPad, rightEdge - leftPad, chartH);
-  ctx.clip();
-
-  // U-family lines (blue) — plot U_λ(j) bar by bar
-  for (let lam = -maxLamU; lam <= maxLamU; lam++) {
-    const isZero = lam === 0;
-    ctx.strokeStyle = isZero ? "rgba(70,140,255,0.95)" : "rgba(70,140,255,0.5)";
-    ctx.lineWidth = isZero ? 2.5 : 1.0;
-    ctx.beginPath();
-    let started = false;
-    for (let idx = start; idx < end; idx++) {
-      const j = idx - opBarIndex;
-      const price = grid.U(lam, j);
-      const x = xB(idx);
-      const y = yScale(price);
-      if (!started) { ctx.moveTo(x, y); started = true; }
-      else ctx.lineTo(x, y);
+  // Check saved session on mount
+  useEffect(() => {
+    const saved = sessionStorage.getItem("cargpt_session");
+    if (saved) {
+      try {
+        const { token, user: u } = JSON.parse(saved);
+        if (token) {
+          fetch("/api/auth", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "session", token }),
+          })
+            .then((r) => r.json())
+            .then((data) => {
+              if (data.user) {
+                setUser(data.user);
+                console.log("✅ Session restored:", data.user.email);
+              } else {
+                sessionStorage.removeItem("cargpt_session");
+              }
+            })
+            .catch(() => sessionStorage.removeItem("cargpt_session"))
+            .finally(() => setAuthLoading(false));
+          return;
+        }
+      } catch {}
     }
-    ctx.stroke();
-    // Label
-    const jEnd = end - 1 - opBarIndex;
-    const pEnd = grid.U(lam, jEnd);
-    const yEnd = yScale(pEnd);
-    if (yEnd > topPad + 5 && yEnd < topPad + chartH - 5) {
-      ctx.fillStyle = "rgba(70,140,255,0.9)";
-      ctx.font = "bold 9px monospace";
-      ctx.textAlign = "right";
-      ctx.fillText(isZero ? "U0" : lam > 0 ? `U${lam}+` : `U${Math.abs(lam)}-`, rightEdge - 3, yEnd - 3);
+    setAuthLoading(false);
+  }, []);
+
+  // Auth actions
+  const authAction = async (action, email, password, name) => {
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      const r = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, email, password, name }),
+      });
+      const data = await r.json();
+      if (data.error) {
+        setAuthError(data.error);
+        return false;
+      }
+      if (data.user) {
+        setUser(data.user);
+        if (data.session?.access_token) {
+          sessionStorage.setItem("cargpt_session", JSON.stringify({ token: data.session.access_token, user: data.user }));
+        }
+        setAuthModal(null);
+        setAEmail(""); setAPass(""); setAName("");
+        // Load favourites after login
+        loadFavourites(data.user.id);
+        console.log("✅ Logged in:", data.user.email);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      setAuthError("Something went wrong. Please try again.");
+      return false;
+    } finally {
+      setAuthBusy(false);
     }
-  }
+  };
 
-  // D-family lines (orange) — plot D_λ(j) bar by bar
-  for (let lam = -maxLamD; lam <= maxLamD; lam++) {
-    const isZero = lam === 0;
-    ctx.strokeStyle = isZero ? "rgba(255,160,50,0.95)" : "rgba(255,160,50,0.5)";
-    ctx.lineWidth = isZero ? 2.5 : 1.0;
-    ctx.beginPath();
-    let started = false;
-    for (let idx = start; idx < end; idx++) {
-      const j = idx - opBarIndex;
-      const price = grid.D(lam, j);
-      const x = xB(idx);
-      const y = yScale(price);
-      if (!started) { ctx.moveTo(x, y); started = true; }
-      else ctx.lineTo(x, y);
+  const logout = () => {
+    const saved = sessionStorage.getItem("cargpt_session");
+    if (saved) {
+      try {
+        const { token } = JSON.parse(saved);
+        fetch("/api/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "logout", token }),
+        });
+      } catch {}
     }
-    ctx.stroke();
-    // Label
-    const jStart = start - opBarIndex;
-    const pStart = grid.D(lam, jStart);
-    const yStart = yScale(pStart);
-    if (yStart > topPad + 5 && yStart < topPad + chartH - 5) {
-      ctx.fillStyle = "rgba(255,160,50,0.9)";
-      ctx.font = "bold 9px monospace";
-      ctx.textAlign = "left";
-      ctx.fillText(isZero ? "D0" : lam > 0 ? `D${lam}+` : `D${Math.abs(lam)}-`, leftPad + 3, yStart - 3);
+    sessionStorage.removeItem("cargpt_session");
+    setUser(null);
+    setFavs([]);
+    setPage("home");
+    setSel(null);
+  };
+
+  // Navigation & Views
+  const [page, setPage] = useState("home"); // home, search, favourites, garage, profile
+  const [sel, setSel] = useState(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [showNotifs, setShowNotifs] = useState(false);
+  const [showTools, setShowTools] = useState(false);
+
+  // Favourites & Data (persistent when logged in)
+  const [favs, setFavs] = useState([]);
+  const loadFavourites = (userId) => {
+    if (!userId) return;
+    fetch(`/api/favourites?user_id=${userId}`)
+      .then(r => r.json())
+      .then(data => { if (data.favourites) setFavs(data.favourites); })
+      .catch(() => {});
+  };
+  // Load favs when user is set
+  useEffect(() => { if (user?.id) loadFavourites(user.id); }, [user?.id]);
+
+  const toggleFav = (vehicleId) => {
+    if (!user) {
+      setAuthModal("login");
+      return;
     }
-  }
+    const isFav = favs.includes(vehicleId);
+    // Optimistic update
+    setFavs(p => isFav ? p.filter(x => x !== vehicleId) : [...p, vehicleId]);
+    // Persist to DB
+    fetch("/api/favourites", {
+      method: isFav ? "DELETE" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: user.id, vehicle_id: vehicleId }),
+    }).catch(() => {
+      // Rollback on error
+      setFavs(p => isFav ? [...p, vehicleId] : p.filter(x => x !== vehicleId));
+    });
+  };
 
-  ctx.restore();
-}
+  // Filters
+  const [fFuel, setFFuel] = useState("All");
+  const [fBody, setFBody] = useState("All");
+  const [fPrice, setFPrice] = useState("All");
+  const [fSort, setFSort] = useState("match");
+  const [fTrans, setFTrans] = useState("All");
+  const [fMiles, setFMiles] = useState("All");
+  const [fYear, setFYear] = useState("All");
+  const [fInsurance, setFInsurance] = useState("All");
+  const [fUlez, setFUlez] = useState("All");
+  const [fColour, setFColour] = useState("All");
+  const [fDoors, setFDoors] = useState("All");
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [aiSearchQuery, setAiSearchQuery] = useState("");
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MAIN APP
-// ═══════════════════════════════════════════════════════════════════════════════
-export default function NapaCapaApp() {
-  const [bars, setBars] = useState(() => generateSampleData());
-  const [params, setParams] = useState({...PRESETS.default});
-  const [enabledStrats, setEnabledStrats] = useState(["S2","S5"]);
-  const [emsMode, setEmsMode] = useState("W");
-  const [mode, setMode] = useState("backtest");
-  const [manualOP, setManualOP] = useState(null);
-  const [clickMode, setClickMode] = useState("manual");
-  const [btResult, setBtResult] = useState(null);
-  const [simState, setSimState] = useState(null);
-  const [simPlaying, setSimPlaying] = useState(false);
-  const [simSpeed, setSimSpeed] = useState(1);
-  const simRef = useRef(null);
-  const [showEventLog, setShowEventLog] = useState(false);
-  const canvasRef = useRef(null);
-  const [chartScroll, setChartScroll] = useState(0);
-  const [barWidth, setBarWidth] = useState(8);
-  const [bottomTab, setBottomTab] = useState("blotter");
-  const [bottomHeight, setBottomHeight] = useState(250);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [blotterSort, setBlotterSort] = useState({col:"xb",asc:false});
-  const [fitGrid, setFitGrid] = useState(false);
-  const chartLayoutRef = useRef({start:0,end:0,minP:0,maxP:0,leftPad:60,topPad:10,chartW:0,chartH:0});
+  const activeFilterCount = [fFuel,fBody,fPrice,fTrans,fMiles,fYear,fInsurance,fUlez,fColour,fDoors].filter(f=>f!=="All").length;
 
-  const visibleBars = useMemo(() => mode==="simulation"&&simState?bars.slice(0,simState.currentBar+1):bars, [bars,mode,simState]);
-  const result = mode==="backtest"?btResult:simState?{ops:simState.ops,trades:simState.trades,events:simState.events,activeInstances:simState.activeInstances}:null;
-  const analytics = useMemo(() => result?computeAnalytics(result.trades):null, [result]);
-  const displayGrid = useMemo(() => {
-    if(manualOP?.grid)return{grid:manualOP.grid,opBarIndex:manualOP.barIndex};
-    if(clickMode==="auto"&&result?.ops){const a=result.ops.filter(op=>(op.state==="PENDING"||op.state==="CONFIRMED")&&op.grid).slice(-1)[0];if(a)return{grid:a.grid,opBarIndex:a.barIndex};}
-    return null;
-  }, [manualOP,clickMode,result]);
+  const clearAllFilters = () => {
+    setFFuel("All"); setFBody("All"); setFPrice("All"); setFTrans("All");
+    setFMiles("All"); setFYear("All"); setFInsurance("All"); setFUlez("All");
+    setFColour("All"); setFDoors("All"); setAiSearchQuery("");
+  };
 
-  useEffect(()=>{if(manualOP)setManualOP(prev=>prev?{...prev,grid:createGridEngine(prev.P0,prev.PH,prev.PL,params)}:null);},[params.phi,params.theta,params.u,params.d,params.n,params.alpha]);
+  // Smart AI filter parser — sets filters from natural language
+  const applyAiFilters = (text) => {
+    const lo = text.toLowerCase();
+    clearAllFilters();
+    setAiSearchQuery(text);
+    if (/\belectric\b|ev\b|tesla/i.test(lo)) setFFuel("Electric");
+    else if (/\bhybrid\b/i.test(lo)) setFFuel("Hybrid");
+    else if (/\bpetrol\b/i.test(lo)) setFFuel("Petrol");
+    else if (/\bdiesel\b/i.test(lo)) setFFuel("Diesel");
+    if (/\bsuv\b|family|space|boot|kids/i.test(lo)) setFBody("SUV");
+    else if (/\bhatchback\b|\bhatch\b/i.test(lo)) setFBody("Hatchback");
+    else if (/\bsaloon\b|\bsedan\b/i.test(lo)) setFBody("Saloon");
+    if (/under.*15|below.*15|max.*15|budget/i.test(lo)) setFPrice("u15");
+    else if (/under.*20|below.*20|max.*20/i.test(lo)) setFPrice("u20");
+    else if (/under.*25|below.*25|max.*25/i.test(lo)) setFPrice("u25");
+    else if (/under.*30|below.*30|max.*30/i.test(lo)) setFPrice("u30");
+    else if (/over.*25|above.*25|premium|luxury/i.test(lo)) setFPrice("25+");
+    if (/\bauto\b|\bautomatic\b/i.test(lo)) setFTrans("Automatic");
+    else if (/\bmanual\b|\bstick\b/i.test(lo)) setFTrans("Manual");
+    if (/low.?mile|under.*10k|less.*10/i.test(lo)) setFMiles("u10");
+    else if (/under.*20k|under.*20.*mile/i.test(lo)) setFMiles("u20");
+    else if (/under.*30k|low.*mileage/i.test(lo)) setFMiles("u30");
+    if (/low.?insur|cheap.?insur|new.?driver|first.?car|young/i.test(lo)) setFInsurance("low");
+    if (/ulez|clean.?air|london|emission/i.test(lo)) setFUlez("yes");
+    if (/\b202[4-6]\b|newest|latest/i.test(lo)) setFYear("2024+");
+    else if (/\b202[2-3]\b/i.test(lo)) setFYear("2022+");
+    if (/cheap|budget|affordable|bargain/i.test(lo)) setFSort("price-low");
+    else if (/best.?deal|value|great.?price/i.test(lo)) setFSort("deal");
+    else if (/new|latest|recent/i.test(lo)) setFSort("newest");
+    else if (/low.?insur|first.?car/i.test(lo)) setFSort("insurance");
+    else setFSort("match");
+    setPage("search"); setSel(null);
+  };
 
-  // Fit to Grid: set chart proportions to match spec's conceptual chart
-  // so visual angles on screen match θ and ϕ exactly
-  const doFitToGrid = useCallback(() => {
-    if (!manualOP) return;
-    const canvas = canvasRef.current; if (!canvas) return;
-    const cH = canvas.parentElement.clientHeight - 40;
-    // Spec: x-axis = (n-1) units, y-axis = (n-1)/α units
-    // For correct visual aspect: barWidth = α * cH / (n-1)
-    const newBW = Math.max(2, Math.min(30, Math.round(params.alpha * cH / (params.n - 1))));
-    setBarWidth(newBW);
-    setChartScroll(Math.max(0, manualOP.barIndex - 5));
-    setFitGrid(true);
-  }, [manualOP, params]);
+  const filtered = V.filter(v =>
+    (fFuel==="All"||v.fuel===fFuel) &&
+    (fBody==="All"||v.bodyType===fBody) &&
+    (fPrice==="All"||(fPrice==="u15"&&v.price<15000)||(fPrice==="u20"&&v.price<20000)||(fPrice==="u25"&&v.price<25000)||(fPrice==="u30"&&v.price<30000)||(fPrice==="15-25"&&v.price>=15000&&v.price<=25000)||(fPrice==="25+"&&v.price>25000)) &&
+    (fTrans==="All"||v.transmission===fTrans) &&
+    (fMiles==="All"||(fMiles==="u10"&&v.mileage<10000)||(fMiles==="u20"&&v.mileage<20000)||(fMiles==="u30"&&v.mileage<30000)||(fMiles==="u50"&&v.mileage<50000)) &&
+    (fYear==="All"||(fYear==="2024+"&&v.year>=2024)||(fYear==="2022+"&&v.year>=2022)||(fYear==="2020+"&&v.year>=2020)) &&
+    (fInsurance==="All"||(fInsurance==="low"&&v.insuranceGroup<=15)||(fInsurance==="mid"&&v.insuranceGroup>15&&v.insuranceGroup<=25)||(fInsurance==="high"&&v.insuranceGroup>25)) &&
+    (fUlez==="All"||(fUlez==="yes"&&v.ulezCompliant)||(fUlez==="no"&&!v.ulezCompliant)) &&
+    (fColour==="All"||v.colour===fColour) &&
+    (fDoors==="All"||v.doors===parseInt(fDoors))
+  ).sort((a,b) =>
+    fSort==="price-low"?a.price-b.price : fSort==="price-high"?b.price-a.price :
+    fSort==="newest"?a.daysListed-b.daysListed : fSort==="miles-low"?a.mileage-b.mileage :
+    fSort==="deal"?(a.priceRating==="Great Deal"?-1:b.priceRating==="Great Deal"?1:a.price-b.price) :
+    fSort==="insurance"?a.insuranceGroup-b.insuranceGroup :
+    b.matchScore-a.matchScore
+  );
 
-  const handleRunBacktest = useCallback(()=>{if(mode==="backtest")setBtResult(runBacktest(bars,params,enabledStrats,emsMode));else{setSimPlaying(false);const s=createSimState(params,enabledStrats,emsMode);s.events.push({barIdx:params.n-1,date:bars[params.n-1]?.date||"",type:"system",msg:"Simulation started"});setSimState(s);}},[bars,params,enabledStrats,emsMode,mode]);
-  useEffect(()=>{if(!simPlaying||!simState||mode!=="simulation")return;const speeds={1:500,2:250,5:100,10:50,25:20,50:10,100:5};const iv=speeds[simSpeed]||500;let lt=0,r=true;const step=(t)=>{if(!r)return;if(t-lt>=iv){lt=t;setSimState(p=>{if(!p||p.currentBar>=bars.length-1){setSimPlaying(false);return p;}return simProcessBar(p,bars,p.currentBar+1);});}simRef.current=requestAnimationFrame(step);};simRef.current=requestAnimationFrame(step);return()=>{r=false;if(simRef.current)cancelAnimationFrame(simRef.current);};},[simPlaying,simSpeed,simState,bars,mode]);
-  const simStepFwd=useCallback(()=>{if(!simState||simState.currentBar>=bars.length-1)return;setSimState(p=>simProcessBar(p,bars,p.currentBar+1));},[simState,bars]);
-  const simStepBack=useCallback(()=>{if(!simState||simState.currentBar<=params.n-1)return;let s=createSimState(params,enabledStrats,emsMode);for(let i=params.n-1;i<=simState.currentBar-1;i++)s=simProcessBar(s,bars,i);setSimState(s);},[simState,bars,params,enabledStrats,emsMode]);
-  const simReset=useCallback(()=>{setSimPlaying(false);const s=createSimState(params,enabledStrats,emsMode);s.events.push({barIdx:params.n-1,date:bars[params.n-1]?.date||"",type:"system",msg:"Reset"});setSimState(s);},[params,enabledStrats,emsMode,bars]);
-  const simScrub=useCallback((t)=>{setSimPlaying(false);let s=createSimState(params,enabledStrats,emsMode);for(let i=params.n-1;i<=t;i++)s=simProcessBar(s,bars,i);setSimState(s);},[params,enabledStrats,emsMode,bars]);
-  useEffect(()=>{if(mode!=="simulation"||!simState)return;const h=(e)=>{if(e.target.tagName==="INPUT"||e.target.tagName==="SELECT")return;const sp=[1,2,5,10,25,50,100];if(e.code==="Space"){e.preventDefault();setSimPlaying(p=>!p);}if(e.code==="ArrowRight"){e.preventDefault();simStepFwd();}if(e.code==="ArrowLeft"){e.preventDefault();simStepBack();}if(e.code==="ArrowUp"){e.preventDefault();setSimSpeed(p=>{const i=sp.indexOf(p);return i<sp.length-1?sp[i+1]:p;});}if(e.code==="ArrowDown"){e.preventDefault();setSimSpeed(p=>{const i=sp.indexOf(p);return i>0?sp[i-1]:p;});}};window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h);},[mode,simState,simStepFwd,simStepBack]);
-  useEffect(()=>{if(mode==="simulation"&&simState){const cW=canvasRef.current?.width||800;setChartScroll(Math.max(0,simState.currentBar-Math.floor(cW/barWidth)+20));}},[simState?.currentBar,mode,barWidth]);
-  const handleUpload=(e)=>{const file=e.target.files?.[0];if(!file)return;Papa.parse(file,{header:true,skipEmptyLines:true,dynamicTyping:true,complete:(res)=>{const p=res.data.filter(r=>r.date&&r.open!=null&&r.high!=null&&r.low!=null&&r.close!=null).map(r=>({date:String(r.date),open:+r.open,high:+r.high,low:+r.low,close:+r.close}));if(p.length>0){setBars(p);setBtResult(null);setSimState(null);setManualOP(null);}}});};
-  const switchMode=(m)=>{setMode(m);setBtResult(null);setSimState(null);setSimPlaying(false);};
+  // Notifications
+  const [notifs, setNotifs] = useState(NOTIFS_SEED);
+  const unreadCount = notifs.filter(n=>!n.read).length;
+  const markRead = (id) => setNotifs(p=>p.map(n=>n.id===id?{...n,read:true}:n));
+  const markAllRead = () => setNotifs(p=>p.map(n=>({...n,read:true})));
 
-  // ═══ CANVAS ═══
-  useEffect(()=>{
-    const canvas=canvasRef.current;if(!canvas||visibleBars.length===0)return;const ctx=canvas.getContext("2d");
-    const W=canvas.parentElement.clientWidth;const H=canvas.parentElement.clientHeight;canvas.width=W;canvas.height=H;
-    const lP=60,rP=20,tP=10,bP=30;const cW=W-lP-rP;const cH=H-tP-bP;const rE=W-rP;
-    ctx.fillStyle="#0f1117";ctx.fillRect(0,0,W,H);
-    const bV=Math.floor(cW/barWidth);const start=Math.max(0,chartScroll);const end=Math.min(visibleBars.length,start+bV);
-    const slice=visibleBars.slice(start,end);if(slice.length===0)return;
-    let minP,maxP;
-    if(fitGrid&&manualOP){const pad=(manualOP.PH-manualOP.PL)*0.15;minP=manualOP.PL-pad;maxP=manualOP.PH+pad;}
-    else{minP=Infinity;maxP=-Infinity;for(const b of slice){minP=Math.min(minP,b.low);maxP=Math.max(maxP,b.high);}const pad=(maxP-minP)*0.06;minP-=pad;maxP+=pad;}
-    const yScale=(p)=>tP+cH*(1-(p-minP)/(maxP-minP));const xBar=(idx)=>lP+(idx-start)*barWidth;
-    chartLayoutRef.current={start,end,minP,maxP,leftPad:lP,topPad:tP,chartW:cW,chartH:cH,rightEdge:rE};
-    // Price axis
-    ctx.strokeStyle="#1a1d24";ctx.lineWidth=1;const pS=Math.pow(10,Math.floor(Math.log10(maxP-minP)-0.5));
-    for(let p=Math.floor(minP/pS)*pS;p<=maxP;p+=pS){const y=yScale(p);ctx.beginPath();ctx.moveTo(lP,y);ctx.lineTo(rE,y);ctx.stroke();ctx.fillStyle="#555";ctx.font="10px monospace";ctx.textAlign="right";ctx.fillText(p.toFixed(2),lP-4,y+3);}
-    // ═══ GRID OVERLAY ═══
-    if(displayGrid) drawGrid(ctx,displayGrid.grid,displayGrid.opBarIndex,start,end,barWidth,lP,yScale,minP,maxP,cH,tP,rE);
-    // Dates
-    ctx.fillStyle="#444";ctx.font="9px monospace";ctx.textAlign="center";const dS=Math.max(1,Math.floor(30/barWidth));
-    for(let idx=start;idx<end;idx+=dS)ctx.fillText(visibleBars[idx].date.slice(5),xBar(idx)+barWidth/2,H-4);
-    // Candles
-    for(let idx=start;idx<end;idx++){const b=visibleBars[idx];const x=xBar(idx);const bw=Math.max(1,barWidth-2);const up=b.close>=b.open;ctx.fillStyle=ctx.strokeStyle=up?"#22c55e":"#ef4444";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x+barWidth/2,yScale(b.high));ctx.lineTo(x+barWidth/2,yScale(b.low));ctx.stroke();const bt=yScale(Math.max(b.open,b.close));const bb=yScale(Math.min(b.open,b.close));if(up)ctx.strokeRect(x+1,bt,bw,Math.max(1,bb-bt));else ctx.fillRect(x+1,bt,bw,Math.max(1,bb-bt));}
-    // OP marker
-    if(manualOP&&manualOP.barIndex>=start&&manualOP.barIndex<end){const x=xBar(manualOP.barIndex)+barWidth/2;const y=yScale(manualOP.P0);ctx.beginPath();ctx.arc(x,y,7,0,Math.PI*2);ctx.fillStyle="#eab308";ctx.fill();ctx.strokeStyle="#000";ctx.lineWidth=1;ctx.stroke();ctx.fillStyle="#000";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText("OP",x,y+3);}
-    if(result?.ops){for(const op of result.ops){if(op.barIndex<start||op.barIndex>=end)continue;const x=xBar(op.barIndex)+barWidth/2;const y=yScale(op.P0);ctx.beginPath();ctx.arc(x,y,op.state==="CONFIRMED"?5:op.state==="PENDING"?5:3,0,Math.PI*2);ctx.fillStyle={PENDING:"#eab308",CONFIRMED:"#f97316",CANCELLED:"#6b7280",INVALIDATED:"#374151",EXPIRED:"#4b5563"}[op.state]||"#eab308";ctx.fill();}}
-    if(result?.trades){for(const t of result.trades){const sd=STRATEGY_DEFS[t.stratId];if(t.eb!=null&&t.eb>=start&&t.eb<end){const x=xBar(t.eb)+barWidth/2,y=yScale(t.ep);ctx.fillStyle=sd.dir==="BUY"?"#22c55e":"#ef4444";ctx.beginPath();if(sd.dir==="BUY"){ctx.moveTo(x,y-6);ctx.lineTo(x-4,y+2);ctx.lineTo(x+4,y+2);}else{ctx.moveTo(x,y+6);ctx.lineTo(x-4,y-2);ctx.lineTo(x+4,y-2);}ctx.fill();}if(t.xb!=null&&t.xb>=start&&t.xb<end&&t.xt!=="FAIL"){const x=xBar(t.xb)+barWidth/2,y=yScale(t.xp);ctx.fillStyle=t.xt==="TP"?"#22c55e":"#ef4444";ctx.fillRect(x-4,y-4,8,8);}if(t.xt==="FAIL"&&t.xb>=start&&t.xb<end){const x=xBar(t.xb)+barWidth/2,y=yScale(visibleBars[t.xb]?.close||0);ctx.strokeStyle="#f97316";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x-4,y-4);ctx.lineTo(x+4,y+4);ctx.stroke();ctx.beginPath();ctx.moveTo(x+4,y-4);ctx.lineTo(x-4,y+4);ctx.stroke();}}}
-  },[visibleBars,barWidth,chartScroll,result,bottomHeight,displayGrid,manualOP,fitGrid,params.theta,params.phi]);
+  // Saved Searches
+  const [savedSearches, setSavedSearches] = useState([
+    {id:1,name:"Family SUV under £30k",filters:{fuel:"All",body:"SUV",price:"u15"},alertFreq:"instant",created:"2026-02-10",matchCount:2},
+    {id:2,name:"Electric under £35k",filters:{fuel:"Electric",body:"All",price:"All"},alertFreq:"daily",created:"2026-02-18",matchCount:1},
+  ]);
+  const [showSavedSearches, setShowSavedSearches] = useState(false);
 
-  const handleChartClick=useCallback((e)=>{
-    if(clickMode!=="manual")return;const canvas=canvasRef.current;if(!canvas)return;
-    const rect=canvas.getBoundingClientRect();const cx=e.clientX-rect.left;const cy=e.clientY-rect.top;
-    const{start,minP,maxP,leftPad,topPad,chartH}=chartLayoutRef.current;
-    if(cx<leftPad||cy<topPad||cy>topPad+chartH)return;
-    const barIdx=start+Math.floor((cx-leftPad)/barWidth);if(barIdx<0||barIdx>=visibleBars.length)return;
-    const clickPrice=maxP-((cy-topPad)/chartH)*(maxP-minP);const bar=visibleBars[barIdx];
-    const n=params.n;const ls=Math.max(0,barIdx-n+1);let pH=-Infinity,pL=Infinity;
-    for(let j=ls;j<=barIdx;j++){pH=Math.max(pH,bars[j].high);pL=Math.min(pL,bars[j].low);}
-    const P0=Math.abs(clickPrice-bar.low)<Math.abs(clickPrice-bar.high)?bar.low:bar.high;
-    setManualOP({barIndex:barIdx,P0,PH:pH,PL:pL,grid:createGridEngine(P0,pH,pL,params)});
-    setFitGrid(true);
-  },[clickMode,barWidth,visibleBars,params,bars]);
+  // Reviews
+  const [reviews] = useState(REVIEWS_SEED);
+  const [reviewModal, setReviewModal] = useState(false);
+  const [reviewStars, setReviewStars] = useState(0);
+  const [reviewText, setReviewText] = useState("");
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
 
-  const handleWheel=useCallback((e)=>{e.preventDefault();setFitGrid(false);if(e.ctrlKey||e.metaKey)setBarWidth(w=>Math.max(2,Math.min(30,w+(e.deltaY<0?1:-1))));else setChartScroll(s=>Math.max(0,s+Math.round(e.deltaY/30)));},[]);
+  // AI Chat
+  const [msgs, setMsgs] = useState([{role:"assistant",text:"Hey! 👋 I'm CarGPT — 8 cars in stock across London, £13,495 to £31,995. Tell me what you're after and I'll find your match.",quickReplies:["I need a family car","Show me EVs","Budget under £15k","What's the best deal?","I'm a new driver"]}]);
+  const [chatIn, setChatIn] = useState("");
+  const [heroIn, setHeroIn] = useState("");
+  const [typing, setTyping] = useState(false);
+  const chatRef = useRef(null);
+  useEffect(() => { chatRef.current?.scrollIntoView({behavior:"smooth"}); }, [msgs,typing]);
 
-  const simRunning=mode==="simulation"&&simState;const simBar=simState?.currentBar||params.n-1;
-  const cumPnL=result?.trades?.filter(t=>t.xt==="TP"||t.xt==="SL").reduce((s,t)=>{const sd=STRATEGY_DEFS[t.stratId];return s+(sd.dir==="BUY"?t.xp-t.ep:t.ep-t.xp);},0)||0;
+  // Finance
+  const [finDep, setFinDep] = useState(2000);
+  const [finTerm, setFinTerm] = useState(48);
+  const [finType, setFinType] = useState("PCP");
 
-  // Check if theta+phi > 90 (D-lines will flip)
-  const angleWarning = false; // pixel-space rendering handles all θ+ϕ values
+  // Vehicle Detail
+  const [detailTab, setDetailTab] = useState("details");
+  const [galleryAngle, setGalleryAngle] = useState(1);
+  const galleryAngles = [1,5,9,13,17,21,25,29];
+  const touchStartX = useRef(null);
+  const handleGallerySwipe = (dir) => {
+    const idx = galleryAngles.indexOf(galleryAngle);
+    if (dir === "left" && idx < galleryAngles.length - 1) setGalleryAngle(galleryAngles[idx + 1]);
+    if (dir === "right" && idx > 0) setGalleryAngle(galleryAngles[idx - 1]);
+  };
+  const [vMsgs, setVMsgs] = useState([]);
+  const [vIn, setVIn] = useState("");
+  const [vTyping, setVTyping] = useState(false);
+  const vRef = useRef(null);
+  useEffect(() => { vRef.current?.scrollIntoView({behavior:"smooth"}); }, [vMsgs,vTyping]);
+  useEffect(() => { if(sel){setDetailTab("details");setVMsgs([]);} }, [sel]);
 
-  return(
-    <div className="h-screen w-screen bg-gray-950 text-gray-200 flex flex-col overflow-hidden" style={{fontFamily:"'JetBrains Mono','Fira Code',monospace"}}>
-      <div className="flex items-center justify-between px-3 py-1.5 bg-gray-900 border-b border-gray-800 shrink-0">
-        <div className="flex items-center gap-3">
-          <span className="font-bold text-sm tracking-wider text-blue-400">≡ NapaCapa</span>
-          <div className="flex bg-gray-800 rounded overflow-hidden text-xs">
-            <button onClick={()=>switchMode("backtest")} className={`px-3 py-1 ${mode==="backtest"?"bg-blue-600 text-white":"text-gray-400"}`}>Backtest</button>
-            <button onClick={()=>switchMode("simulation")} className={`px-3 py-1 ${mode==="simulation"?"bg-blue-600 text-white":"text-gray-400"}`}>Simulation</button>
-          </div>
-          <div className="flex bg-gray-800 rounded overflow-hidden text-xs">
-            <button onClick={()=>setClickMode("manual")} className={`px-2 py-1 flex items-center gap-1 ${clickMode==="manual"?"bg-yellow-600 text-white":"text-gray-400"}`}><Crosshair size={10}/>Manual OP</button>
-            <button onClick={()=>setClickMode("auto")} className={`px-2 py-1 ${clickMode==="auto"?"bg-green-600 text-white":"text-gray-400"}`}>Auto OP</button>
-          </div>
-          {manualOP&&<button onClick={doFitToGrid} className="px-2 py-1 bg-purple-700 hover:bg-purple-600 rounded text-xs text-white flex items-center gap-1"><Maximize2 size={10}/>Fit to Grid</button>}
-        </div>
-        <div className="flex items-center gap-2">
-          {manualOP&&<span className="text-xs text-yellow-400">OP: Bar {manualOP.barIndex} | P₀={manualOP.P0.toFixed(2)}</span>}
-          <button onClick={()=>{setManualOP(null);setFitGrid(false);}} className="text-xs text-gray-500 hover:text-red-400">Clear OP</button>
-          <label className="text-xs text-gray-500 hover:text-blue-400 cursor-pointer flex items-center gap-1"><Upload size={12}/>CSV<input type="file" accept=".csv,.tsv,.txt" onChange={handleUpload} className="hidden"/></label>
-          <button onClick={()=>{setBars(generateSampleData());setBtResult(null);setSimState(null);setManualOP(null);}} className="text-xs text-gray-500 hover:text-blue-400">Sample</button>
+  // Dealer Chat — now with real-time persistence
+  const [showDChat, setShowDChat] = useState(false);
+  const [dMsgs, setDMsgs] = useState([]);
+  const [dIn, setDIn] = useState("");
+  const [dTyping, setDTyping] = useState(false);
+  const [dCtx, setDCtx] = useState(null);
+  const [activeConvoId, setActiveConvoId] = useState(null);
+  const [conversations, setConversations] = useState([]);
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const [dFlow, setDFlow] = useState(null); // active flow: testdrive|finance|partex|negotiate|null
+  const [dFlowData, setDFlowData] = useState({});
+  const dRef = useRef(null);
+  useEffect(() => { dRef.current?.scrollIntoView({behavior:"smooth"}); }, [dMsgs,dTyping]);
+
+  // Load conversations on login
+  const loadConversations = async () => {
+    if (!user?.id) return;
+    try {
+      const r = await fetch(`/api/conversations?user_id=${user.id}`);
+      const data = await r.json();
+      if (data.conversations) setConversations(data.conversations);
+    } catch {}
+  };
+  useEffect(() => { if (user?.id) loadConversations(); }, [user?.id]);
+
+  // Poll for new messages in active conversation
+  useEffect(() => {
+    if (!activeConvoId) return;
+    const poll = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/conversations?id=${activeConvoId}`);
+        const data = await r.json();
+        if (data.messages) {
+          const dbMsgs = data.messages.map(m => ({
+            id: m.id,
+            role: m.sender_type === "user" ? "user" : "bot",
+            text: m.content,
+            time: m.created_at,
+          }));
+          // Only update if we have more messages than current
+          setDMsgs(prev => dbMsgs.length > prev.length ? dbMsgs : prev);
+        }
+      } catch {}
+    }, 5000);
+    return () => clearInterval(poll);
+  }, [activeConvoId]);
+
+  // All tool modals state
+  const [activeModal, setActiveModal] = useState(null);
+  const [regIn, setRegIn] = useState("");
+  const [regResult, setRegResult] = useState(null);
+  const [dealUrl, setDealUrl] = useState("");
+  const [dealResult, setDealResult] = useState(null);
+  const [ulezReg, setUlezReg] = useState("");
+  const [ulezResult, setUlezResult] = useState(null);
+  const [motCar, setMotCar] = useState(null);
+  const [valReg, setValReg] = useState("");
+  const [valResult, setValResult] = useState(null);
+  const [pexReg, setPexReg] = useState("");
+  const [pexResult, setPexResult] = useState(null);
+  const [hpiReg, setHpiReg] = useState("");
+  const [hpiResult, setHpiResult] = useState(null);
+  const [hpiPremium, setHpiPremium] = useState(false);
+  const [compCars, setCompCars] = useState([V[0],V[1]]);
+  const [agentSteps, setAgentSteps] = useState([]);
+  const [agentRunning, setAgentRunning] = useState(false);
+  const [agentType, setAgentType] = useState(null);
+  const [accidentStep, setAccidentStep] = useState(0);
+  const [warningResult, setWarningResult] = useState(null);
+  const [journeyFrom, setJourneyFrom] = useState("");
+  const [journeyTo, setJourneyTo] = useState("");
+  const [journeyResult, setJourneyResult] = useState(null);
+  const [fineType, setFineType] = useState(null);
+  const [bikSalary, setBikSalary] = useState(50000);
+  const [bikCar, setBikCar] = useState(null);
+  const [theoryScore, setTheoryScore] = useState(null);
+  const [theoryQ, setTheoryQ] = useState(0);
+  const [profTab, setProfTab] = useState("account");
+
+  // ═══ CORE FUNCTIONS ═══
+  const calcFin = (price) => {
+    const p = price - finDep, apr = finType==="HP"?0.079:finType==="PCP"?0.089:0.069, r = apr/12;
+    const balloon = finType==="PCP"?price*0.35:0;
+    const f = p-(finType==="PCP"?balloon*Math.pow(1+r,-finTerm):0);
+    const m = finType==="PCH"?(price*0.015):(f*r*Math.pow(1+r,finTerm))/(Math.pow(1+r,finTerm)-1);
+    return {monthly:Math.round(m),apr:(apr*100).toFixed(1),balloon:Math.round(balloon),total:Math.round(m*finTerm+finDep+balloon)};
+  };
+
+  const callAI = async (messages, maxTokens = 1024) => {
+    try {
+      const r = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages, max_tokens: maxTokens })
+      });
+      if (!r.ok) { console.warn("AI API error:", r.status); return null; }
+      const d = await r.json();
+      if (d.error) { console.warn("AI error:", d.error); return null; }
+      return (d.content || []).filter(i => i.type === "text").map(i => i.text).join("\n") || null;
+    } catch (e) { console.warn("AI call failed:", e.message); return null; }
+  };
+
+  // Build rich vehicle data string for AI context
+  const buildVehicleContext = (v) => {
+    const dl = D.find(d => d.id === v.dealerId) || D[0];
+    const fin = calcFin(v.price);
+    const motSummary = (v.mot || []).map(m => `${m.date}: ${m.result}${m.advisories?.length ? " — " + m.advisories.join("; ") : ""}`).join(" | ");
+    return [
+      `${v.year} ${v.make} ${v.model} ${v.variant}`,
+      `Price: ${fmt(v.price)} (${v.priceRating}) — Listed ${v.daysListed} days`,
+      `Mileage: ${fmtMi(v.mileage)} | Fuel: ${v.fuel} | Gearbox: ${v.transmission} | Body: ${v.bodyType}`,
+      `Engine: ${v.engineSize}, ${v.specs.bhp}bhp, ${v.specs.torque}, 0-62 in ${v.specs.acceleration}s`,
+      `Economy: ${v.specs.fuelEconomy}${typeof v.specs.fuelEconomy === "number" ? " mpg" : ""} | Boot: ${v.specs.bootSpace}L`,
+      v.specs.range ? `Range: ${v.specs.range} miles | Battery: ${v.specs.batteryCapacity}` : null,
+      `Colour: ${v.colour} | Doors: ${v.doors} | Reg: ${v.vrm}`,
+      `CO2: ${v.co2}g/km | Euro: ${v.euroEmissions} | ULEZ: ${v.ulezCompliant ? "Compliant" : "NOT compliant (£12.50/day)"}`,
+      `Insurance Group: ${v.insuranceGroup}/50 | Tax: ${v.taxCost === 0 ? "FREE" : "£" + v.taxCost + "/yr"}`,
+      `HPI: ${v.hpiClear ? "Clear" : "Pending"} | Service History: ${v.serviceHistory ? "Full" : "Partial"} | Previous Keepers: ${v.previousKeepers}`,
+      `MOT Expires: ${v.motExpiry} | History: ${motSummary || "Clean"}`,
+      `Features: ${v.features.join(", ")}`,
+      `Location: ${v.location} | Match Score: ${v.matchScore}%`,
+      `Finance: PCP ~£${fin.monthly}/mo (${fin.apr}% APR, ${fmt(finDep)} dep, ${finTerm}mo) | HP ~£${Math.round(fin.monthly * 1.15)}/mo | Balloon: ${fmt(fin.balloon)}`,
+      `Dealer: ${dl.name} (${dl.location}) | Rating: ${dl.rating}★ (${dl.reviews} reviews) | Response: ${dl.responseTime} | Trust: ${dl.trustScore}/100`,
+    ].filter(Boolean).join("\n");
+  };
+
+  // Build full inventory summary for main chat
+  const buildInventoryContext = () => {
+    return V.map(v => {
+      const fin = calcFin(v.price);
+      return `• ${v.year} ${v.make} ${v.model} ${v.variant} — ${fmt(v.price)} (${v.priceRating}), ${fmtMi(v.mileage)}, ${v.fuel}, ${v.transmission}, ${v.bodyType}, ${v.colour}, ${v.engineSize} ${v.specs.bhp}bhp, 0-62 ${v.specs.acceleration}s, ${v.specs.fuelEconomy}${typeof v.specs.fuelEconomy === "number" ? "mpg" : ""}, boot ${v.specs.bootSpace}L, insurance grp ${v.insuranceGroup}, tax £${v.taxCost}/yr, ULEZ ${v.ulezCompliant ? "yes" : "no"}, ${v.features.slice(0, 3).join(", ")}, ${v.location}, PCP ~£${fin.monthly}/mo, match ${v.matchScore}%${v.specs.range ? ", range " + v.specs.range + "mi" : ""}`;
+    }).join("\n");
+  };
+
+  // System prompts for each chat type
+  const SYSTEM_PROMPTS = {
+    main: `You are CarGPT, the UK's AI car buying assistant. Friendly, knowledgeable mate who knows cars.
+
+CRITICAL RULES:
+- Keep responses to 2-3 sentences MAX. Be punchy, not an essay.
+- British English. Say "mate", "brilliant", "sorted" naturally.
+- Give honest opinions — if overpriced say so, if great deal be enthusiastic.
+- Only reference vehicles from the inventory below. Never invent cars.
+- When recommending, say WHY in one short line per car.
+- If asked a specific question, answer it directly — don't pad with extra info.
+- ALWAYS end your response with exactly 3 suggested follow-up questions on a new line in this format:
+  [SUGGESTIONS: suggestion one | suggestion two | suggestion three]
+  Make them short (3-6 words), natural, and relevant to what the user might want to ask next.
+
+CURRENT INVENTORY (${V.length} vehicles, all London area):
+`,
+    vehicle: `You are CarGPT, a knowledgeable UK car expert giving advice on a specific vehicle.
+
+CRITICAL RULES:
+- Keep responses to 2-3 sentences MAX. Direct and useful, not essays.
+- Answer the exact question asked. Don't volunteer a life story about the car.
+- Use the actual data below to back up your answer with specific numbers.
+- Be honest — flag concerns, praise good value. Like a trusted mechanic mate.
+- Only mention alternatives if the user specifically asks to compare.
+- ALWAYS end your response with exactly 3 suggested follow-up questions on a new line in this format:
+  [SUGGESTIONS: suggestion one | suggestion two | suggestion three]
+  Make them short (3-6 words), natural, and relevant to the vehicle discussion.
+
+THE VEHICLE:
+`,
+    dealer: `You are the AI assistant for {DEALER_NAME} at {DEALER_LOCATION}, rated {DEALER_RATING}★ ({DEALER_REVIEWS} reviews).
+
+CRITICAL RULES:
+- Keep responses to 2-3 sentences MAX. Professional but warm, like a helpful sales advisor.
+- Answer the question directly. Don't over-explain.
+- British English. Be confident about the car — it IS in stock.
+
+FLOW HANDLING — Detect these intents and respond naturally:
+- TEST DRIVE: Confirm enthusiasm, mention the showroom location. Time slots available.
+- FINANCE: Quote the specific PCP/HP figures from the vehicle data. Keep it brief.
+- PART EXCHANGE: Ask for their reg and current mileage so you can value it.
+- PRICE/NEGOTIATE: Acknowledge their interest, explain the car is competitively priced but you're open to discussing the full package.
+- AVAILABILITY: Confirm it's in stock and ready to view.
+- WARRANTY: Standard 3-month included, extended options available.
+- DELIVERY: Collection or delivery within 50 miles, nationwide available.
+
+ALWAYS end your response with exactly 3 suggested follow-up actions on a new line in this format:
+[SUGGESTIONS: suggestion one | suggestion two | suggestion three]
+Make them short (3-6 words), natural buyer actions.
+
+THE VEHICLE:
+`
+  };
+
+  const smartReply = (q, ctx) => {
+    const t = (q||"").toLowerCase(), v = ctx?.vehicle;
+    if(v){
+      const f=calcFin(v.price);
+      if(/hpi|stolen|write.?off|clear/i.test(t))return v.hpiClear?`Good news — this ${v.make} ${v.model} is fully HPI clear. No outstanding finance, not stolen, no insurance write-off. It's had ${v.previousKeepers} previous keeper${v.previousKeepers>1?"s":""} and comes with ${v.serviceHistory?"full service history":"partial service history"}. You can run our premium check for the full 10-point report.`:`The HPI check is still pending on this one. I'd recommend waiting for the full report before committing.`;
+      if(/mot|advisory|test/i.test(t)){const lastMot=v.mot?.[0];return `MOT is valid until ${v.motExpiry}. ${lastMot?`Last test on ${lastMot.date} was a ${lastMot.result}${lastMot.advisories?.length?". Advisory noted: "+lastMot.advisories.join(", ")+". Nothing to worry about but worth keeping an eye on":". Clean pass, no advisories — that's great"}.`:"No issues flagged."} ${v.mot?.some(m=>m.result==="Fail")?"There was a previous fail in the history — it was fixed and has passed since.":""}`;}
+      if(/insurance|insur/i.test(t))return `Insurance group ${v.insuranceGroup} out of 50. ${v.insuranceGroup<=12?"That's really low — great for younger drivers or if you want to keep costs down.":v.insuranceGroup<=20?"Mid-range, pretty reasonable for a ${v.make} ${v.model}.":v.insuranceGroup<=30?"On the higher side — budget around £${Math.round(800+v.insuranceGroup*25)}-£${Math.round(1200+v.insuranceGroup*30)}/yr depending on your profile.":"That's quite high — you'll want to get quotes from comparison sites. Consider black box insurance if you're under 25."}`;
+      if(/good.?deal|worth|value|overpriced|fair/i.test(t))return `At ${fmt(v.price)} with ${fmtMi(v.mileage)}, this is rated "${v.priceRating}". ${v.priceRating==="Great Deal"?"Honestly, this is priced below market — I'd move quickly if you're interested. It's been listed "+v.daysListed+" days and won't last.":v.priceRating==="Good Deal"?"Solid pricing for the spec and mileage. Listed "+v.daysListed+" days."+( v.daysListed>21?" That's been around a while — there could be room to negotiate.":""):"Fair price but there might be room to negotiate, especially if you're paying cash or have a part-exchange."}`;
+      if(/running|fuel|economy|mpg|cost.*run|cheap.*run/i.test(t))return v.fuel==="Electric"?`Running costs are where EVs really shine. Zero road tax, ULEZ exempt, and charging costs around 5-7p per mile (vs 15-18p for petrol). Servicing is cheaper too — fewer moving parts. The main cost is depreciation, but the ${v.make} ${v.model} holds value well.`:`Real-world economy should be around ${v.specs.fuelEconomy} mpg. Road tax is ${v.taxCost===0?"free":"£"+v.taxCost+"/yr"}, insurance group ${v.insuranceGroup}. ${v.ulezCompliant?"ULEZ compliant so no daily charge in London.":"⚠️ Not ULEZ compliant — that's £12.50/day in London."} All in, budget roughly £${Math.round(150+v.taxCost/12+v.insuranceGroup*4)}-£${Math.round(250+v.taxCost/12+v.insuranceGroup*6)}/month for fuel, tax, and insurance.`;
+      if(/finance|monthly|pcp|hp |hire|lease|afford/i.test(t))return `Here are your finance options on this ${v.make} ${v.model} at ${fmt(v.price)}:\n\n• PCP: ~£${f.monthly}/mo (${f.apr}% APR, ${fmt(finDep)} deposit, ${finTerm} months, ${fmt(f.balloon)} balloon)\n• HP: ~£${Math.round(f.monthly*1.15)}/mo (own it outright at the end)\n• PCH Lease: ~£${Math.round(v.price*0.015)}/mo (never own it, just hand back)\n\nPCP is most popular — lower monthlies but you don't own it until you pay the balloon. HP costs more monthly but it's yours at the end. Want me to adjust the deposit or term?`;
+      if(/spec|feature|what.*got|equipment|kit/i.test(t))return `This ${v.make} ${v.model} comes with: ${v.features.join(", ")}. Under the bonnet it's ${v.specs.bhp}bhp with ${v.specs.torque} torque, doing 0-62 in ${v.specs.acceleration}s. ${v.specs.bootSpace}L boot${v.bodyType==="SUV"?" — plenty of space for the family":""}. ${v.fuel==="Electric"?`Battery is ${v.specs.batteryCapacity} giving ${v.specs.range} miles range.`:""}`;
+      if(/tax|ved|road.?tax/i.test(t))return v.taxCost===0?`Road tax is completely free on this one! ${v.fuel==="Electric"?"All EVs are zero-rated for VED.":"Hybrid with CO2 under 100g/km gets the free rate."}`:`Road tax is £${v.taxCost}/yr (${v.co2}g/km CO2). ${v.co2>150?"That's above average — worth factoring into your budget.":"Pretty standard for a "+v.fuel.toLowerCase()+" car this size."}`;
+      if(/ulez|emission|london|zone|clean/i.test(t))return v.ulezCompliant?`This ${v.make} ${v.model} is fully ULEZ compliant (${v.euroEmissions}). No daily charge in London's Ultra Low Emission Zone or any Clean Air Zone. ${v.co2===0?"Zero emissions — as clean as it gets!":""}`:`⚠️ This car is NOT ULEZ compliant. You'd pay £12.50 every day you drive in London's ULEZ zone. That's £3,125/year if you commute daily. Seriously consider an alternative if you drive in London regularly.`;
+      if(/mileage|miles|how far|high.?mile|low.?mile/i.test(t))return `${fmtMi(v.mileage)} on the clock. ${v.mileage<15000?"That's very low mileage — well below average for a "+v.year+". Could mean it was a second car or barely used.":v.mileage<25000?"Below average mileage for its age — that's good.":v.mileage<40000?"About average for a "+(2026-v.year)+"-year-old car (roughly 10K/year).":"Above average mileage, but "+v.make+"s handle it well."} ${v.serviceHistory?"Full service history backs it up.":"Partial service history — you might want to ask the dealer for more detail."}`;
+      if(/reliab|problem|issue|fault|common/i.test(t))return `The ${v.make} ${v.model} is generally ${v.make==="Toyota"||v.make==="Kia"?"very reliable — "+v.make+" consistently tops reliability surveys.":v.make==="BMW"||v.make==="Mercedes-Benz"?"well-built but can have higher repair costs when things do go wrong.":"a solid choice with good reliability."}${v.mot?.some(m=>m.advisories?.length)?" The MOT history shows minor advisories but nothing concerning.":""} With ${v.serviceHistory?"full":"partial"} service history and ${v.previousKeepers} previous keeper${v.previousKeepers>1?"s":""}, this example looks well cared for.`;
+      return `The ${v.year} ${v.make} ${v.model} ${v.variant} is at ${fmt(v.price)} with ${fmtMi(v.mileage)} — rated "${v.priceRating}". It's ${v.fuel.toLowerCase()}, ${v.transmission.toLowerCase()}, insurance group ${v.insuranceGroup}, and ${v.ulezCompliant?"ULEZ compliant":"not ULEZ compliant"}. What would you like to know more about?`;
+    }
+    if(/family|suv|kids|child|space|boot/i.test(t))return `For families, I'd look at the Kia Sportage (${fmt(31995)}) — 591L boot, 7-year warranty, brilliant spec with panoramic roof and 360° camera. Or if budget is tighter, the Ford Focus ST-Line (${fmt(13495)}) has decent space and great tech. The Toyota Yaris is good on running costs but the boot's only 286L — might be tight with a pushchair.`;
+    if(/first.?car|new.?driver|just.?passed|young/i.test(t))return `For a new driver, insurance is the big one. The Toyota Yaris Hybrid (${fmt(16995)}, group 10) is your best bet — cheap insurance, brilliant fuel economy (68.9mpg), and Toyota reliability. The Ford Focus (${fmt(13495)}, group 14) is also decent. Stay under group 15 to keep premiums manageable. Consider a black box policy too — saves 20-40%.`;
+    if(/electric|ev|tesla|zero.?emission|charge/i.test(t))return `The Tesla Model 3 Long Range (${fmt(29995)}) is our EV pick — 374 miles range, 0-62 in 4.4s, zero road tax, ULEZ exempt. Running costs are roughly 5-7p/mile vs 15-18p for petrol. The Autopilot and 15" touchscreen are brilliant. We also have two hybrids if you're not ready to go fully electric — the Yaris Hybrid and Kia Sportage HEV.`;
+    if(/cheap|budget|under.*15|affordable|bargain/i.test(t))return `Best value in stock is the Ford Focus ST-Line at ${fmt(13495)} — sporty looks, B&O audio, 125bhp, group 14 insurance. It's been listed ${V[3].daysListed} days so there might be negotiation room. Next up is the Toyota Yaris Hybrid at ${fmt(16995)} with the lowest running costs of anything we have. What's your absolute max budget?`;
+    if(/bmw|audi|merc|premium|luxury|posh/i.test(t))return `Three premium options for you: The BMW 320d M Sport (${fmt(22495)}) is rated "Great Deal" — 190bhp, leather, Harman Kardon. The Audi A3 S Line (${fmt(21995)}) has the Virtual Cockpit and that premium Audi interior. The Mercedes A200 AMG Line (${fmt(23495)}) has MBUX, ambient lighting, and the widescreen cockpit. All three are ULEZ compliant with strong specs. The BMW is the best value right now.`;
+    if(/compare|vs|or|between|which/i.test(t))return `Happy to compare any of our cars! Just tell me the two you're considering and I'll break down the differences — price, running costs, specs, the lot. Or tell me what matters most to you (budget, space, performance, insurance) and I'll recommend the best match.`;
+    if(/hi|hello|hey|morning|afternoon|hiya/i.test(t))return `Hey! 👋 Welcome to CarGPT. I've got ${V.length} brilliant cars in stock across London, from ${fmt(13495)} to ${fmt(31995)}. I can search by budget, lifestyle, fuel type — or just tell me what you need and I'll find the perfect match. What are you after?`;
+    if(/thanks|thank|cheers|ta /i.test(t))return `No worries! 😊 Anything else you'd like to know? I can check finance, MOT history, insurance costs, or help you book a test drive on any car.`;
+    return `I've got ${V.length} cars in stock from ${fmt(13495)} to ${fmt(31995)} — hatchbacks, saloons, SUVs, petrol, diesel, electric, and hybrid. Tell me your budget, what you'll use it for, or what matters most to you, and I'll find the right match!`;
+  };
+
+  // ── Parse AI suggestions from response ──
+  const parseSuggestions = (text) => {
+    const match = text.match(/\[SUGGESTIONS?:\s*(.+?)\]/i);
+    if (!match) return { text, suggestions: [] };
+    const clean = text.replace(/\[SUGGESTIONS?:\s*.+?\]/i, "").trim();
+    const suggestions = match[1].split("|").map(s => s.trim()).filter(s => s.length > 0 && s.length < 50);
+    return { text: clean, suggestions: suggestions.slice(0, 4) };
+  };
+
+  // ── Voice-to-text ──
+  const [voiceActive, setVoiceActive] = useState(null);
+  const recognitionRef = useRef(null);
+  const micSvg = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>;
+  const stopSvg = <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>;
+
+  const toggleVoice = (target, setter) => {
+    if (voiceActive) {
+      if (recognitionRef.current) try { recognitionRef.current.stop(); } catch(e) {}
+      recognitionRef.current = null;
+      setVoiceActive(null);
+      return;
+    }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    const r = new SR();
+    r.lang = "en-GB";
+    r.interimResults = true;
+    r.continuous = true;
+    recognitionRef.current = r;
+    setVoiceActive(target);
+    let final = "";
+    r.onresult = (e) => {
+      let interim = "";
+      for (let i = 0; i < e.results.length; i++) {
+        if (e.results[i].isFinal) final += (final?" ":"") + e.results[i][0].transcript;
+        else interim += e.results[i][0].transcript;
+      }
+      setter((final + (interim ? " " + interim : "")).trim());
+    };
+    r.onend = () => {
+      // Auto restart if still active (browser stops after silence)
+      if (recognitionRef.current && voiceActive) {
+        try { r.start(); } catch(e) {
+          setVoiceActive(null); recognitionRef.current = null;
+        }
+        return;
+      }
+      setVoiceActive(null); recognitionRef.current = null;
+    };
+    r.onerror = (e) => {
+      if (e.error === "no-speech" || e.error === "aborted") return;
+      setVoiceActive(null); recognitionRef.current = null;
+    };
+    try { r.start(); } catch(e) { setVoiceActive(null); }
+  };
+
+  const sendChat = async (text) => {
+    if(!text?.trim())return;
+    const um={role:"user",text:text.trim()};
+    setMsgs(p=>[...p,um]); setChatIn(""); setHeroIn(""); setTyping(true);
+    if(!chatOpen) setChatOpen(true);
+
+    // Also apply filters to search page
+    applyAiFilters(text);
+
+    // Smart vehicle matching — show relevant car cards
+    const lo=text.toLowerCase();
+    let cars=null;
+    if(/family|suv|kids|child|space|boot|pushchair/i.test(lo)) cars=V.filter(v=>v.bodyType==="SUV"||v.specs.bootSpace>400);
+    else if(/electric|ev|zero.?emission|charge|tesla/i.test(lo)) cars=V.filter(v=>v.fuel==="Electric");
+    else if(/hybrid|eco/i.test(lo)) cars=V.filter(v=>v.fuel==="Hybrid");
+    else if(/cheap|budget|under.*15|afford|bargain/i.test(lo)) cars=[...V].sort((a,b)=>a.price-b.price).slice(0,4);
+    else if(/under.*20/i.test(lo)) cars=V.filter(v=>v.price<20000);
+    else if(/under.*25/i.test(lo)) cars=V.filter(v=>v.price<25000);
+    else if(/under.*30/i.test(lo)) cars=V.filter(v=>v.price<30000);
+    else if(/bmw|audi|merc|premium|luxury|posh/i.test(lo)) cars=V.filter(v=>["BMW","Audi","Mercedes-Benz"].includes(v.make));
+    else if(/petrol/i.test(lo)) cars=V.filter(v=>v.fuel==="Petrol");
+    else if(/diesel/i.test(lo)) cars=V.filter(v=>v.fuel==="Diesel");
+    else if(/auto|automatic/i.test(lo)) cars=V.filter(v=>v.transmission!=="Manual");
+    else if(/manual|stick/i.test(lo)) cars=V.filter(v=>v.transmission==="Manual");
+    else if(/hatchback|hatch/i.test(lo)) cars=V.filter(v=>v.bodyType==="Hatchback");
+    else if(/saloon|sedan/i.test(lo)) cars=V.filter(v=>v.bodyType==="Saloon");
+    else if(/first.?car|new.?driver|young|insurance.*low|low.*insurance/i.test(lo)) cars=[...V].sort((a,b)=>a.insuranceGroup-b.insuranceGroup).slice(0,4);
+    else if(/show|find|search|recommend|what.*got|browse|all/i.test(lo)) cars=[...V].sort((a,b)=>b.matchScore-a.matchScore).slice(0,4);
+    // Match specific makes/models mentioned
+    else { const makeMatch = V.filter(v => lo.includes(v.make.toLowerCase()) || lo.includes(v.model.toLowerCase())); if(makeMatch.length) cars=makeMatch; }
+
+    // Build AI messages with rich context
+    const fullPrompt = SYSTEM_PROMPTS.main + buildInventoryContext();
+    const hist=[...msgs.slice(-8),um].map(m=>({role:m.role==="assistant"?"assistant":"user",content:m.text}));
+    const merged=[];for(const m of hist){if(merged.length>0&&merged[merged.length-1].role===m.role)merged[merged.length-1].content+="\n"+m.content;else merged.push({...m});}
+    while(merged.length>0&&merged[0].role!=="user")merged.shift();
+    if(merged.length>0) merged[0].content = fullPrompt + "\n\n---\nUser: " + merged[0].content;
+
+    try {
+      const r = await callAI(merged, 300);
+      const raw = r || smartReply(text,{});
+      const { text: cleanText, suggestions } = parseSuggestions(raw);
+      const msg = {role:"assistant", text: cleanText};
+      if(suggestions.length) msg.quickReplies = suggestions;
+      if(cars?.length) msg.vehicles = cars.slice(0,4);
+      setMsgs(p=>[...p,msg]);
+    } catch(e) {
+      const raw = smartReply(text,{});
+      const { text: cleanText, suggestions } = parseSuggestions(raw);
+      const msg = {role:"assistant", text: cleanText};
+      if(suggestions.length) msg.quickReplies = suggestions;
+      if(cars?.length) msg.vehicles = cars.slice(0,4);
+      setMsgs(p=>[...p,msg]);
+    }
+    setTyping(false);
+  };
+
+  const sendVMsg = async (text) => {
+    if(!text?.trim()||!sel)return;
+    const v=sel;
+    setVMsgs(p=>[...p,{role:"user",text:text.trim()}]); setVIn(""); setVTyping(true);
+
+    // Build rich vehicle context
+    const vehicleContext = buildVehicleContext(v);
+    const altCars = V.filter(x=>x.id!==v.id).slice(0,3).map(a=>`  - ${a.year} ${a.make} ${a.model}: ${fmt(a.price)}, ${fmtMi(a.mileage)}, ${a.fuel}, grp ${a.insuranceGroup}`).join("\n");
+    const fullPrompt = SYSTEM_PROMPTS.vehicle + vehicleContext + "\n\nALTERNATIVES IN STOCK (mention if relevant):\n" + altCars;
+
+    const hist=[...vMsgs,{role:"user",text}].map(m=>({role:m.role==="assistant"?"assistant":"user",content:m.text}));
+    const merged=[];for(const m of hist){if(merged.length>0&&merged[merged.length-1].role===m.role)merged[merged.length-1].content+="\n"+m.content;else merged.push({...m});}
+    while(merged.length>0&&merged[0].role!=="user")merged.shift();
+    if(!merged.length)merged.push({role:"user",content:text});
+    merged[0].content = fullPrompt + "\n\n---\nUser: " + merged[0].content;
+
+    try {
+      const r = await callAI(merged, 300);
+      const raw = r||smartReply(text,{vehicle:v});
+      const { text: cleanText, suggestions } = parseSuggestions(raw);
+      const msg = {role:"assistant",text:cleanText};
+      if(suggestions.length) msg.quickReplies = suggestions;
+      setVMsgs(p=>[...p,msg]);
+    } catch(e) {
+      const raw = smartReply(text,{vehicle:v});
+      const { text: cleanText, suggestions } = parseSuggestions(raw);
+      const msg = {role:"assistant",text:cleanText};
+      if(suggestions.length) msg.quickReplies = suggestions;
+      setVMsgs(p=>[...p,msg]);
+    }
+    setVTyping(false);
+  };
+
+  const openDChat = async (vid, flow="general") => {
+    if (!user) { setAuthModal("login"); return; }
+    const v=V.find(x=>x.id===vid)||V[0], dl=D.find(d=>d.id===v.dealerId)||D[0];
+    setDCtx({vehicleId:vid,flow,vehicle:v,dealer:dl});
+    setShowDChat(true); setActiveModal("dealer-chat");
+    setDFlow(flow==="testDrive"?"testdrive":null); setDFlowData({});
+
+    // Create or load conversation from Supabase
+    try {
+      const cr = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: user.id, dealer_id: v.dealerId, vehicle_id: vid }),
+      });
+      const cdata = await cr.json();
+      const convoId = cdata.conversation_id;
+      setActiveConvoId(convoId);
+
+      if (cdata.existing) {
+        // Load existing messages
+        const mr = await fetch(`/api/conversations?id=${convoId}`);
+        const mdata = await mr.json();
+        if (mdata.messages?.length > 0) {
+          setDMsgs(mdata.messages.map(m => ({
+            id: m.id,
+            role: m.sender_type === "user" ? "user" : "bot",
+            text: m.content,
+            time: m.created_at,
+          })));
+          // Mark read
+          fetch("/api/conversations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "mark_read", conversation_id: convoId }),
+          });
+          return;
+        }
+      }
+
+      // New conversation — send greeting
+      const g=flow==="testDrive"
+        ?`Hey! 👋 Great choice on the ${v.year} ${v.make} ${v.model}. I've got several slots available this week — pick one that works for you!`
+        :`Hey! 👋 Thanks for your interest in the ${v.year} ${v.make} ${v.model} at ${fmt(v.price)}. How can I help?`;
+      const qr=flow==="testDrive"?["Mon 10am","Tue 2pm","Wed 11am","Thu 3:30pm","Sat 10am"]:["Is it available?","📅 Book a test drive","💳 Finance options","🔄 Part exchange","Negotiate the price"];
+      setDMsgs([{role:"bot",text:g,quickReplies:qr}]);
+
+      // Save greeting to DB
+      fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "send", conversation_id: convoId, sender_type: "dealer", text: g }),
+      });
+    } catch(e) {
+      console.warn("Failed to create conversation:", e);
+      // Fallback to local-only
+      const g=flow==="testDrive"
+        ?`Hey! 👋 Great choice on the ${v.year} ${v.make} ${v.model}. I've got slots available this week — pick one that works for you!`
+        :`Hey! 👋 Thanks for your interest in the ${v.year} ${v.make} ${v.model} at ${fmt(v.price)}. How can I help?`;
+      const qr=flow==="testDrive"?["Mon 10am","Tue 2pm","Wed 11am","Thu 3:30pm","Sat 10am"]:["Is it available?","📅 Book a test drive","💳 Finance options","🔄 Part exchange","Negotiate the price"];
+      setDMsgs([{role:"bot",text:g,quickReplies:qr}]);
+    }
+  };
+
+  const sendDMsg = async (text) => {
+    if(!text?.trim())return;
+    const ctx=dCtx, v=ctx?.vehicle||V[0], dl=ctx?.dealer||D[0];
+    const trimmed = text.trim();
+    const lower = trimmed.toLowerCase();
+    setDMsgs(p=>[...p,{role:"user",text:trimmed}]); setDIn(""); setDTyping(true);
+    const fin=calcFin(v.price);
+
+    // Save user message to DB
+    if (activeConvoId) {
+      fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "send", conversation_id: activeConvoId, sender_type: "user", text: trimmed }),
+      });
+    }
+
+    const addResp = (msg) => {
+      setDMsgs(p=>[...p,msg]);
+      setDTyping(false);
+      if (activeConvoId) {
+        const saveText = msg.text || (msg.card ? `[${msg.card.type}] ${msg.card.title||""}` : trimmed);
+        fetch("/api/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "send", conversation_id: activeConvoId, sender_type: "dealer", text: saveText }),
+        });
+        loadConversations();
+      }
+    };
+
+    const delay = (ms) => new Promise(r => setTimeout(r, ms));
+    await delay(600 + Math.random() * 800);
+
+    // ── FLOW: Test Drive Booking ──
+    if (/📅|test.?drive|book.*view|come.*see|want.*see/i.test(lower) && !dFlow) {
+      setDFlow("testdrive");
+      setDFlowData({});
+      addResp({
+        role:"bot",
+        text:`Great choice! The ${v.make} ${v.model} is ready at our ${dl.location} showroom. Pick a slot that works for you:`,
+        card: {
+          type:"slot-picker",
+          slots:["Mon 10am","Tue 2pm","Wed 11am","Thu 3:30pm","Sat 10am"],
+        }
+      });
+      return;
+    }
+
+    // Handle slot selection (in testdrive flow)
+    if (dFlow === "testdrive" && !dFlowData.slot) {
+      const slotMatch = trimmed.match(/mon|tue|wed|thu|sat|10am|2pm|11am|3:30|10 am|2 pm/i);
+      if (slotMatch || /^\w+ \d/i.test(trimmed)) {
+        setDFlowData({...dFlowData, slot: trimmed});
+        addResp({
+          role:"bot",
+          text:`Brilliant, ${trimmed} it is! Just need your name and phone number to confirm the booking.`,
+          quickReplies:["Use my account details"],
+        });
+        return;
+      }
+    }
+
+    // Handle contact details (in testdrive flow)
+    if (dFlow === "testdrive" && dFlowData.slot && !dFlowData.confirmed) {
+      const name = /use my account|my details/i.test(lower) ? (user?.name||"Customer") : trimmed.split(/[,\n]/)[0];
+      setDFlowData({...dFlowData, confirmed:true, name});
+      setDFlow(null);
+      addResp({
+        role:"bot",
+        text:`All confirmed! 🎉`,
+        card: {
+          type:"confirmation",
+          title:"Test Drive Booked",
+          icon:"📅",
+          lines:[
+            {label:"Car", value:`${v.year} ${v.make} ${v.model}`},
+            {label:"When", value:dFlowData.slot},
+            {label:"Where", value:`${dl.name}, ${dl.location}`},
+            {label:"Name", value:name},
+          ],
+          footer:"Bring your driving licence. Takes about 30 mins, no obligation.",
+        },
+        quickReplies:["Ask about finance","Get a valuation","What's included in the price?"],
+      });
+      return;
+    }
+
+    // ── FLOW: Finance Options ──
+    if (/💳|finance|monthly|pcp|hp |afford|payment/i.test(lower) && !dFlow) {
+      setDFlow("finance");
+      setDFlowData({deposit: Math.round(v.price * 0.1), term: 48});
+      const dep = Math.round(v.price * 0.1);
+      const pcpM = fin.monthly;
+      const hpM = Math.round(fin.monthly * 1.15);
+      addResp({
+        role:"bot",
+        text:`Here are your finance options on the ${v.make} ${v.model} at ${fmt(v.price)}:`,
+        card: {
+          type:"finance",
+          options:[
+            {name:"PCP", monthly:pcpM, apr:fin.apr, deposit:dep, term:48, balloon:fin.balloon, desc:"Lower monthly, option to return or buy at end"},
+            {name:"HP", monthly:hpM, apr:fin.apr+0.5, deposit:dep, term:48, balloon:0, desc:"Higher monthly, but you own it outright"},
+            {name:"PCH Lease", monthly:Math.round(v.price*0.015), apr:null, deposit:dep*3, term:48, balloon:null, desc:"Just hand it back, no ownership"},
+          ],
+          carPrice: v.price,
+        },
+        quickReplies:["Run a soft credit check","Adjust deposit amount","Which is best for me?"],
+      });
+      return;
+    }
+
+    // Handle credit check (in finance flow)
+    if (dFlow === "finance" && /credit.?check|soft.?check|check.*score|apply|eligible/i.test(lower)) {
+      setDTyping(true);
+      await delay(1500);
+      const score = 600 + Math.floor(Math.random() * 300);
+      const approved = score > 650;
+      setDFlow(null);
+      addResp({
+        role:"bot",
+        text: approved ? `Great news! 🎉 Soft check complete — no impact on your credit score.` : `We've run the check — here are your results:`,
+        card: {
+          type:"confirmation",
+          title: approved ? "Pre-Approved" : "Referred",
+          icon: approved ? "✅" : "⏳",
+          lines:[
+            {label:"Status", value: approved ? "Pre-approved" : "Referred to underwriter"},
+            {label:"Indicative APR", value:`${fin.apr}%`},
+            {label:"Monthly (PCP)", value:`£${fin.monthly}/mo`},
+            {label:"Credit Impact", value:"None (soft check)"},
+          ],
+          footer: approved ? "This is indicative. Final rate confirmed on full application." : "A specialist will review — usually 24-48 hours.",
+        },
+        quickReplies: approved ? ["Book a test drive","Proceed with application","Ask about part-exchange"] : ["Try another lender","Book a test drive","Ask a question"],
+      });
+      return;
+    }
+
+    // Handle deposit adjustment
+    if (dFlow === "finance" && /adjust|change.*deposit|lower.*deposit|higher.*deposit|deposit.*(\d)/i.test(lower)) {
+      const numMatch = lower.match(/(\d[\d,]*)/);
+      const newDep = numMatch ? parseInt(numMatch[1].replace(/,/g,"")) : Math.round(v.price * 0.15);
+      const pcpM = Math.round((v.price - newDep) / 48 * 1.08);
+      const hpM = Math.round(pcpM * 1.15);
+      setDFlowData({...dFlowData, deposit: newDep});
+      addResp({
+        role:"bot",
+        text:`Updated with ${fmt(newDep)} deposit:`,
+        card: {
+          type:"finance",
+          options:[
+            {name:"PCP", monthly:pcpM, apr:fin.apr, deposit:newDep, term:48, balloon:Math.round(v.price*0.35), desc:"Lower monthly, option to return or buy"},
+            {name:"HP", monthly:hpM, apr:fin.apr+0.5, deposit:newDep, term:48, balloon:0, desc:"Own it outright at the end"},
+          ],
+          carPrice: v.price,
+        },
+        quickReplies:["Run a soft credit check","Book a test drive","What about 60 months?"],
+      });
+      return;
+    }
+
+    // ── FLOW: Part Exchange ──
+    if (/🔄|part.?ex|trade.?in|my.?car|swap|got.*to.?sell/i.test(lower) && !dFlow) {
+      setDFlow("partex");
+      setDFlowData({});
+      addResp({
+        role:"bot",
+        text:`Happy to help with a part-exchange! What's the reg number and rough mileage of your current car?`,
+        quickReplies:["I'll type the reg","I don't have a car to trade"],
+      });
+      return;
+    }
+
+    // Handle reg input (in part-ex flow)
+    if (dFlow === "partex" && !dFlowData.valued) {
+      if (/don.?t have|no car|no trade|skip/i.test(lower)) {
+        setDFlow(null);
+        addResp({
+          role:"bot",
+          text:`No problem at all! The ${v.make} ${v.model} is ${fmt(v.price)} as it stands. Anything else I can help with?`,
+          quickReplies:["Ask about finance","Book a test drive","Negotiate the price"],
+        });
+        return;
+      }
+      // Try to parse a reg
+      const regMatch = trimmed.match(/[A-Z]{2}\d{2}\s*[A-Z]{3}/i) || trimmed.match(/\b\w{2,4}\s?\w{3}\b/i);
+      const mileMatch = lower.match(/(\d[\d,]+)\s*(k|miles|mi)/i);
+      const estMiles = mileMatch ? parseInt(mileMatch[1].replace(/,/g,"")) * (mileMatch[2]==="k"?1000:1) : 25000 + Math.floor(Math.random()*30000);
+      const pexVal = 8000 + Math.floor(Math.random()*14000);
+      const net = v.price - pexVal;
+      setDFlowData({valued:true, reg: regMatch?.[0]||trimmed.split(/\s/)[0], pexVal, miles:estMiles});
+      setDFlow(null);
+      addResp({
+        role:"bot",
+        text:`We've valued your car — here's the breakdown:`,
+        card: {
+          type:"confirmation",
+          title:"Part-Exchange Valuation",
+          icon:"🔄",
+          lines:[
+            {label:"Your Car", value: regMatch?.[0]||trimmed.split(/\s/)[0].toUpperCase()},
+            {label:"Est. Mileage", value:fmtMi(estMiles)},
+            {label:"Trade-In Value", value:fmt(pexVal)},
+            {label:v.make+" "+v.model, value:fmt(v.price)},
+            {label:"You Pay", value:fmt(Math.max(0,net)), highlight:true},
+          ],
+          footer:"Final valuation confirmed on inspection. We aim to beat online quotes.",
+        },
+        quickReplies:["Accept this valuation","Finance the remainder","Book a test drive"],
+      });
+      return;
+    }
+
+    // ── FLOW: Price Negotiation ──
+    if (/negotiate|offer|best.?price|discount|deal|knock.*off|willing.*pay|reduce/i.test(lower) && !dFlow) {
+      setDFlow("negotiate");
+      setDFlowData({});
+      addResp({
+        role:"bot",
+        text:`I understand you're looking for the best deal. The ${v.make} ${v.model} at ${fmt(v.price)} is rated "${v.priceRating}" against the market. ${v.daysListed > 21 ? "It's been with us " + v.daysListed + " days so there could be some flexibility." : "It's priced competitively but I'm open to a conversation."} What figure did you have in mind?`,
+        quickReplies:[fmt(Math.round(v.price*0.95)),fmt(Math.round(v.price*0.93)),fmt(Math.round(v.price*0.9)),"Make me an offer"],
+      });
+      return;
+    }
+
+    // Handle offer amount (in negotiate flow)
+    if (dFlow === "negotiate") {
+      const numMatch = lower.replace(/[£,]/g,"").match(/(\d{4,6})/);
+      if (numMatch) {
+        const offer = parseInt(numMatch[1]);
+        const diff = v.price - offer;
+        const pct = diff / v.price;
+        setDFlow(null);
+        if (pct <= 0.03) {
+          // Accept
+          addResp({
+            role:"bot",
+            text:`You know what — you've got yourself a deal. 🤝`,
+            card: {
+              type:"confirmation", title:"Offer Accepted!", icon:"🎉",
+              lines:[
+                {label:"Original Price", value:fmt(v.price)},
+                {label:"Your Offer", value:fmt(offer)},
+                {label:"You Save", value:fmt(diff), highlight:true},
+              ],
+              footer:"This price is held for 48 hours. Come in or call to finalise.",
+            },
+            quickReplies:["Book a test drive","Ask about finance","Reserve this car"],
+          });
+        } else if (pct <= 0.07) {
+          // Counter
+          const counter = Math.round(v.price - diff * 0.5);
+          addResp({
+            role:"bot",
+            text:`I appreciate the offer. I can't quite do ${fmt(offer)}, but I could meet you at ${fmt(counter)} — that's ${fmt(v.price - counter)} off the asking price. How does that sound?`,
+            quickReplies:["Accept " + fmt(counter), fmt(Math.round((offer+counter)/2)), "I'll think about it"],
+          });
+        } else {
+          // Too low
+          addResp({
+            role:"bot",
+            text:`I appreciate the offer, but ${fmt(offer)} is quite a stretch from our asking price of ${fmt(v.price)}. The best I could realistically do is ${fmt(Math.round(v.price * 0.95))}. Would you like to discuss the full package — finance, part-exchange, extras — to make it work for your budget?`,
+            quickReplies:["Ask about finance","Part-exchange my car","Book a test drive"],
+          });
+        }
+        return;
+      }
+    }
+
+    // ── DEFAULT: AI-powered response ──
+    // Clear flow if switching topics
+    if (dFlow && !/slot|deposit|reg|offer|accept/i.test(lower)) setDFlow(null);
+
+    // Fallback responses
+    const fb=()=>{const dq=text.toLowerCase();
+      if(/available|in.?stock|still.?got/i.test(dq))return `Yes! The ${v.year} ${v.make} ${v.model} is here at our ${dl.location} showroom, ready to view or test drive. Would you like to book a slot?`;
+      if(/warranty|guarantee|cover/i.test(dq))return `The ${v.make} ${v.model} comes with our standard 3-month warranty included. We also offer 6-month and 12-month extended warranties. ${v.make==="Kia"?"Plus Kia's 7-year manufacturer warranty still has time remaining — exceptional cover.":""}`;
+      if(/deliver|collect|bring/i.test(dq))return `You're welcome to collect from our ${dl.location} showroom, or we deliver within 50 miles. Nationwide also available.`;
+      return `The ${v.year} ${v.make} ${v.model} is at ${fmt(v.price)} with ${fmtMi(v.mileage)}. Would you like to book a test drive, discuss finance, or get a part-exchange valuation?`;
+    };
+
+    // Build dealer-persona prompt with full vehicle data
+    const vehicleContext = buildVehicleContext(v);
+    const dealerPrompt = SYSTEM_PROMPTS.dealer
+      .replace("{DEALER_NAME}", dl.name)
+      .replace("{DEALER_LOCATION}", dl.location)
+      .replace("{DEALER_RATING}", dl.rating)
+      .replace("{DEALER_REVIEWS}", dl.reviews);
+
+    const hist=[...dMsgs,{role:"user",text}].map(m=>({role:m.role==="bot"?"assistant":"user",content:m.text||""})).filter(m=>m.content);
+    const merged=[];for(const m of hist){if(merged.length>0&&merged[merged.length-1].role===m.role)merged[merged.length-1].content+="\n"+m.content;else merged.push({...m});}
+    while(merged.length>0&&merged[0].role!=="user")merged.shift();
+    if(!merged.length)merged.push({role:"user",content:text});
+    merged[0].content = dealerPrompt + vehicleContext + "\n\n---\nCustomer: " + merged[0].content;
+
+    let respText;
+    try {
+      const r = await callAI(merged, 300);
+      respText = r || fb();
+    } catch(e) {
+      respText = fb();
+    }
+
+    const { text: cleanResp, suggestions } = parseSuggestions(respText);
+    const resp = {role:"bot", text: cleanResp};
+    if (suggestions.length) {
+      resp.quickReplies = suggestions;
+    }
+    addResp(resp);
+  };
+
+  // Action functions
+  const doRegLookup = () => { const q=regIn.toUpperCase().replace(/\s/g,""); const match=V.find(v=>v.vrm.replace(/\s/g,"")===q); setRegResult(match||V[Math.floor(Math.random()*V.length)]); };
+  const doValuation = () => { const q=valReg.toUpperCase().replace(/\s/g,""); const match=V.find(v=>v.vrm.replace(/\s/g,"")===q); const base=match?match.price:15000+Math.floor(Math.random()*15000); setValResult({car:match||{year:2020,make:"Vehicle",model:"Found",variant:"",mileage:30000,fuel:"Petrol"},low:Math.round(base*0.92),mid:Math.round(base*0.96),high:Math.round(base*1.02)}); };
+  const doPartEx = () => { const q=pexReg.toUpperCase().replace(/\s/g,""); const match=V.find(v=>v.vrm.replace(/\s/g,"")===q); const base=match?match.price:17500; setPexResult({car:match||{year:2021,make:"VW",model:"Golf",mileage:24500},low:Math.round(base*0.88),mid:Math.round(base*0.93),high:Math.round(base*0.97)}); };
+  const doDealCheck = (vehicle) => { const r=vehicle||V[Math.floor(Math.random()*V.length)]; const savings=Math.round(r.price*0.03+Math.random()*r.price*0.05); setDealResult({vehicle:r,verdict:r.priceRating.includes("Great")?"Excellent":r.priceRating.includes("Good")?"Good":"Fair",savings,marketAvg:r.price+savings,confidence:75+Math.floor(Math.random()*20)}); };
+  const doUlezCheck = () => { const q=ulezReg.toUpperCase().replace(/\s/g,""); const match=V.find(v=>v.vrm.replace(/\s/g,"")===q); setUlezResult(match||V[Math.floor(Math.random()*V.length)]); };
+  const doHpiCheck = () => {const q=hpiReg.toUpperCase().replace(/\s/g,"");const match=V.find(v=>v.vrm.replace(/\s/g,"")===q);const car=match||V[Math.floor(Math.random()*V.length)];setHpiResult({car,free:{make:car.make,model:car.model,year:car.year,fuel:car.fuel,colour:car.colour,engineSize:car.engineSize,co2:car.co2,taxStatus:car.taxCost===0?"Taxed (£0)":"Taxed",taxDue:"01 Oct 2026",motStatus:"Valid",motExpiry:car.motExpiry,firstReg:"01 Mar "+car.year},premium:{financeOutstanding:Math.random()>0.85?"⚠️ YES — £8,420 outstanding":"✅ None recorded",stolen:"✅ Not recorded as stolen",writeOff:Math.random()>0.9?"⚠️ Cat N (2022)":"✅ No write-off recorded",scrapped:"✅ Not recorded as scrapped",plateChanges:Math.random()>0.7?`1 previous plate`:"None recorded",keeperChanges:`${car.previousKeepers+1} registered keepers`,mileageAnomaly:"✅ No mileage discrepancies found",importExport:"✅ UK registered — not imported",highRisk:Math.random()>0.92?"⚠️ Flagged":"✅ No high risk markers",vin:"WVW"+Math.random().toString(36).substring(2,12).toUpperCase()}}); };
+  const doJourney=()=>{if(!journeyFrom&&!journeyTo)return;const dist=Math.round(5+Math.random()*80);const fuel=Math.round((dist/45)*4.546*1.45*100)/100;const tolls=dist>30?Math.random()>0.5?{name:"Dart Charge",cost:2.50}:null:null;const cong=journeyFrom.toLowerCase().includes("central")||journeyTo.toLowerCase().includes("central")?15:0;const ulez=cong>0?12.50:0;const park=3+Math.round(Math.random()*12);setJourneyResult({dist,time:Math.round(dist*1.8),fuel,tolls,cong,ulez,park,total:Math.round((fuel+(tolls?.cost||0)+cong+ulez+park)*100)/100});};
+
+  const runAgent = async (type) => {
+    setAgentType(type); setAgentRunning(true); setAgentSteps([]);
+    const v = sel || V[Math.floor(Math.random()*V.length)];
+    const fin = calcFin(v.price);
+
+    const addStep = (t, delay=600) => new Promise(r => {
+      setTimeout(() => { setAgentSteps(prev=>[...prev,{t}]); r(); }, delay);
+    });
+
+    try {
+      if (type === "hunt") {
+        await addStep("🔍 Scanning 450,000+ UK listings...", 400);
+        await addStep("🎯 Filtering by your preferences...", 800);
+        await addStep("📊 Analysing market pricing data...", 900);
+        // Real AI call
+        const prompt = `You're CarGPT Deal Hunter. Given these cars in stock, identify the top 3 deals and explain why in 1 line each. Be specific with numbers.\n${V.map(c=>`${c.year} ${c.make} ${c.model}: ${fmt(c.price)}, ${fmtMi(c.mileage)}, ${c.daysListed} days listed, rated "${c.priceRating}"`).join("\n")}\nFormat: numbered list, 1 line each, mention savings.`;
+        const r = await callAI([{role:"user",content:prompt}], 250);
+        const { text: clean } = parseSuggestions(r || "Found 3 great deals below market value!");
+        await addStep("✅ " + clean, 400);
+      }
+      else if (type === "testdrive") {
+        await addStep("📅 Checking dealer availability...", 400);
+        await addStep(`🏪 Contacting ${V.slice(0,3).map(c=>c.location.split(",")[0]).join(", ")}...`, 900);
+        await addStep("🗓️ Finding optimal schedule...", 700);
+        const slots = ["Mon 10am","Tue 2pm","Wed 11am","Thu 3:30pm","Sat 10am"];
+        const s1 = slots[Math.floor(Math.random()*slots.length)];
+        const s2 = slots[Math.floor(Math.random()*slots.length)];
+        await addStep(`✅ 2 test drives booked:\n• ${v.make} ${v.model} — ${s1} at ${v.location}\n• ${V.find(x=>x.id!==v.id)?.make} ${V.find(x=>x.id!==v.id)?.model} — ${s2}`, 400);
+      }
+      else if (type === "negotiate") {
+        await addStep("📊 Analysing market position...", 400);
+        await addStep(`💰 ${v.make} ${v.model} at ${fmt(v.price)} — rated "${v.priceRating}"`, 700);
+        await addStep("🤝 Preparing negotiation strategy...", 800);
+        const prompt = `You're CarGPT Price Negotiator. This ${v.year} ${v.make} ${v.model} is listed at ${fmt(v.price)} with ${fmtMi(v.mileage)}, rated "${v.priceRating}", listed ${v.daysListed} days. Give a 2-sentence negotiation result: what discount you got and why the dealer agreed. Be specific with £ amounts. Be realistic.`;
+        const r = await callAI([{role:"user",content:prompt}], 150);
+        const { text: clean } = parseSuggestions(r || `Negotiated £800 off — now ${fmt(v.price-800)}`);
+        await addStep("✅ " + clean, 400);
+      }
+      else if (type === "partex") {
+        await addStep("🚗 Looking up your vehicle...", 400);
+        await addStep("📨 Requesting valuations from 4 dealers...", 1000);
+        await addStep("⚖️ Comparing offers...", 800);
+        const base = 8000 + Math.floor(Math.random()*12000);
+        const offers = D.slice(0,4).map((d,i) => ({name:d.name, offer:base + (i===0?1200:i===1?800:i===2?-200:-600)}));
+        offers.sort((a,b)=>b.offer-a.offer);
+        await addStep(`✅ Best offer: ${fmt(offers[0].offer)} from ${offers[0].name}\n• ${offers[1].name}: ${fmt(offers[1].offer)}\n• ${offers[2].name}: ${fmt(offers[2].offer)}\n• ${offers[3].name}: ${fmt(offers[3].offer)}`, 400);
+      }
+      else if (type === "finance") {
+        await addStep("📋 Running soft credit check (no impact)...", 400);
+        await addStep("🏦 Querying 12 lenders...", 1000);
+        await addStep(`💳 Comparing rates for ${fmt(v.price)}...`, 800);
+        const prompt = `You're CarGPT Finance Shopper. For a ${v.year} ${v.make} ${v.model} at ${fmt(v.price)}, give the best finance result in 2 sentences: best APR rate, monthly payment on PCP with 10% deposit over 48 months, and which lender. Mention a second option briefly. Be specific with numbers.`;
+        const r = await callAI([{role:"user",content:prompt}], 150);
+        const { text: clean } = parseSuggestions(r || `Best rate: ${fin.apr}% APR with Black Horse — £${fin.monthly}/mo PCP`);
+        await addStep("✅ " + clean, 400);
+      }
+      else if (type === "paperwork") {
+        await addStep("📄 Generating V5C transfer checklist...", 400);
+        await addStep("🛡️ Finding insurance quotes...", 900);
+        await addStep("💰 Setting up tax reminder...", 700);
+        await addStep(`✅ All sorted for ${v.make} ${v.model}:\n• V5C transfer guide ready\n• 3 insurance quotes found (from £${Math.round(300+v.insuranceGroup*18)}/yr)\n• Tax reminder set (£${v.taxCost}/yr)\n• Driveaway cover available`, 400);
+      }
+    } catch(e) {
+      await addStep("✅ Complete — results ready", 400);
+    }
+    setAgentRunning(false);
+  };
+
+  const openModal = (key) => { setActiveModal(key); setShowTools(false); };
+  const closeModal = () => { setActiveModal(null); };
+
+  // ═══ RENDER: SLIDE-OVER MODAL WRAPPER ═══
+  // ═══ RENDER: NAVBAR ═══
+  const Navbar = () => (
+    <nav className="navbar">
+      <div className="nav-left">
+        <div className="nav-logo" onClick={()=>{setPage("home");setSel(null);}}>Car<span>GPT</span></div>
+        <div className="nav-links">
+          {[{key:"home",label:"Home"},{key:"search",label:"Browse"},{key:"favourites",label:"Favourites"},{key:"messages",label:"Messages"},{key:"garage",label:"My Garage"}].map(n =>
+            <button key={n.key} className={`nav-link ${page===n.key && !sel?"active":""}`}
+              onClick={()=>{
+                if((n.key==="favourites"||n.key==="garage"||n.key==="messages") && !user){ setAuthModal("login"); return; }
+                if(n.key==="messages") loadConversations();
+                setPage(n.key);setSel(null);
+              }}>{n.label}{n.key==="messages"&&(conversations||[]).length>0&&(conversations||[]).some(c=>c.user_unread_count>0)&&<span style={{width:7,height:7,borderRadius:"50%",background:"#DC2626",display:"inline-block",marginLeft:4,verticalAlign:"middle"}}/>}</button>
+          )}
+          <button className={`nav-link ${showTools?"active":""}`} onClick={()=>setShowTools(!showTools)}>Tools ▾</button>
         </div>
       </div>
-      <div className="flex flex-1 overflow-hidden">
-        {sidebarOpen&&(<div className="w-56 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0 overflow-y-auto" style={{fontSize:"11px"}}>
-          <div className="p-2 border-b border-gray-800">
-            <div className="flex justify-between items-center mb-2"><span className="font-semibold text-gray-400 uppercase tracking-wider text-xs">Parameters</span><button onClick={()=>setSidebarOpen(false)} className="text-gray-600 hover:text-gray-300"><X size={12}/></button></div>
-            <div className="flex gap-1 mb-2">{Object.keys(PRESETS).map(p=>(<button key={p} onClick={()=>setParams({...PRESETS[p]})} className="px-2 py-0.5 bg-gray-800 rounded text-xs text-gray-400 hover:bg-gray-700 capitalize">{p}</button>))}</div>
-            <div className="text-xs text-blue-400 mb-1 font-semibold">Grid Shape</div>
-            {angleWarning&&<div className="text-xs text-amber-400 mb-1 bg-amber-900/30 rounded px-1 py-0.5">⚠ θ+ϕ={params.theta+params.phi}° &gt; 90° — D-lines flip direction. Keep θ+ϕ &lt; 90° for proper diamonds.</div>}
-            <PI label="ϕ Critical Angle" value={params.phi} min={10} max={80} step={1} onChange={v=>setParams(p=>({...p,phi:v}))}/>
-            <PI label="θ Setting Angle" value={params.theta} min={1} max={89} step={1} onChange={v=>setParams(p=>({...p,theta:v}))}/>
-            <PI label="u (side)" value={params.u} min={1} max={50} step={0.1} onChange={v=>setParams(p=>({...p,u:v}))}/>
-            <PI label="d (side)" value={params.d} min={1} max={50} step={0.1} onChange={v=>setParams(p=>({...p,d:v}))}/>
-            <PI label="n (bars)" value={params.n} min={10} max={500} step={1} onChange={v=>setParams(p=>({...p,n:v}))}/>
-            <PI label="α (aspect)" value={params.alpha} min={0.1} max={5} step={0.1} onChange={v=>setParams(p=>({...p,alpha:v}))}/>
-            <div className="text-xs text-gray-500 mb-1 mt-2 font-semibold">Strategy</div>
-            <PI label="ε (tolerance)" value={params.epsilon} min={0} max={0.01} step={0.0001} onChange={v=>setParams(p=>({...p,epsilon:v}))}/>
-            <PI label="ν (cancel)" value={params.nu} min={1} max={500} step={1} onChange={v=>setParams(p=>({...p,nu:v}))}/>
-            <PI label="κ (expire)" value={params.kappa} min={1} max={500} step={1} onChange={v=>setParams(p=>({...p,kappa:v}))}/>
-            <PI label="μ (breaks)" value={params.mu} min={1} max={10} step={1} onChange={v=>setParams(p=>({...p,mu:v}))}/>
-            <div className="text-xs text-gray-500 mb-1 mt-2 font-semibold">EMS</div>
-            <select value={emsMode} onChange={e=>setEmsMode(e.target.value)} className="w-full text-xs bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-200 mb-2"><option value="W">W — Worst</option><option value="A">A — Average</option><option value="N">N — Next open</option><option value="F">F — First worse</option></select>
+      <div className="nav-right">
+        <button className="nav-btn mob-tools-btn" onClick={()=>setShowTools(!showTools)} title="Tools" style={{position:"relative"}}>
+          ☰
+        </button>
+        <button className="nav-btn" onClick={()=>setShowNotifs(!showNotifs)} title="Notifications" style={{position:"relative"}}>
+          🔔 {unreadCount > 0 && <span style={{position:"absolute",top:2,right:2,width:18,height:18,borderRadius:"50%",background:"#DC2626",color:"white",fontSize:10,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center"}}>{unreadCount}</span>}
+        </button>
+        {user ? (
+          <div className="nav-avatar" onClick={()=>{setPage("profile");setSel(null);}} title={user.name}>
+            {user.name?.charAt(0)?.toUpperCase() || "U"}
           </div>
-          {manualOP?.grid&&(<div className="p-2 border-b border-gray-800 bg-yellow-900/20"><div className="text-xs text-yellow-400 font-semibold mb-1">Grid Info</div><div className="text-xs text-gray-400 space-y-0.5"><div>P₀={manualOP.P0.toFixed(2)} ΔP={manualOP.grid.dP.toFixed(2)}</div><div><span className="text-blue-400">U₀:</span> {params.theta}° up | hᵤ={manualOP.grid.hU.toFixed(4)}</div><div><span className="text-orange-400">D₀:</span> {Math.abs(params.theta-params.phi).toFixed(0)}° {params.theta>=params.phi?"up":"dn"} | h_d={manualOP.grid.hD.toFixed(4)}</div><div>ϕ={params.phi}° between</div></div></div>)}
-          <div className="p-2 border-b border-gray-800"><div className="text-xs text-gray-500 mb-1 font-semibold">Strategies</div>{Object.values(STRATEGY_DEFS).map(sd=>(<label key={sd.id} className="flex items-center gap-1.5 py-0.5 text-xs cursor-pointer"><input type="checkbox" checked={enabledStrats.includes(sd.id)} onChange={e=>setEnabledStrats(prev=>e.target.checked?[...prev,sd.id]:prev.filter(s=>s!==sd.id))} className="rounded border-gray-600"/><span className={enabledStrats.includes(sd.id)?"text-gray-200":"text-gray-500"}>{sd.id}: {sd.name}</span></label>))}</div>
-          <div className="p-2"><button onClick={handleRunBacktest} className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded">{mode==="backtest"?"▶ Run Backtest":"▶ Init Simulation"}</button></div>
-          <div className="p-2 text-xs text-gray-600"><span className="inline-block w-3 h-1 bg-blue-500 mr-1 rounded"></span>U lines (upward) <span className="inline-block w-3 h-1 bg-orange-400 ml-2 mr-1 rounded"></span>D lines (downward)</div>
-        </div>)}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {!sidebarOpen&&<button onClick={()=>setSidebarOpen(true)} className="absolute left-1 top-12 z-10 bg-gray-800 rounded p-1 text-gray-400 hover:text-white"><Settings size={14}/></button>}
-          <div className="flex-1 relative overflow-hidden" onWheel={handleWheel}>
-            <canvas ref={canvasRef} className="absolute inset-0 w-full h-full cursor-crosshair" onClick={handleChartClick}/>
-            <div className="absolute top-2 right-2 flex gap-1 z-10">
-              <button onClick={()=>setBarWidth(w=>Math.min(30,w+2))} className="bg-gray-800/80 rounded p-1 text-gray-400 hover:text-white"><ZoomIn size={14}/></button>
-              <button onClick={()=>setBarWidth(w=>Math.max(2,w-2))} className="bg-gray-800/80 rounded p-1 text-gray-400 hover:text-white"><ZoomOut size={14}/></button>
-              <button onClick={()=>{setChartScroll(0);setBarWidth(8);setFitGrid(false);}} className="bg-gray-800/80 rounded p-1 text-gray-400 hover:text-white"><RotateCcw size={14}/></button>
-            </div>
-            {clickMode==="manual"&&<div className="absolute top-2 left-2 bg-yellow-900/60 rounded px-2 py-1 text-xs text-yellow-300 z-10">Click any bar to set Origin Point</div>}
+        ) : (
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <button className="btn btn-secondary btn-sm" style={{padding:"6px 14px",fontSize:13}} onClick={()=>setAuthModal("login")}>Log in</button>
+            <button className="btn btn-primary btn-sm" style={{padding:"6px 14px",fontSize:13}} onClick={()=>setAuthModal("signup")}>Sign up</button>
           </div>
-          {simRunning&&(<div className="bg-gray-900 border-t border-gray-800 px-3 py-2 shrink-0"><div className="flex items-center gap-2 flex-wrap"><button onClick={simReset} className="px-2 py-1 bg-gray-700 rounded text-xs">|◁</button><button onClick={simStepBack} className="px-2 py-1 bg-gray-700 rounded text-xs">◁</button><button onClick={()=>setSimPlaying(p=>!p)} className={`px-3 py-1 rounded text-xs font-bold ${simPlaying?"bg-amber-600":"bg-green-600"}`}>{simPlaying?"❚❚":"▶"}</button><button onClick={simStepFwd} className="px-2 py-1 bg-gray-700 rounded text-xs">▷</button><select value={simSpeed} onChange={e=>setSimSpeed(+e.target.value)} className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs">{[1,2,5,10,25,50,100].map(s=><option key={s} value={s}>{s}x</option>)}</select><input type="range" min={params.n-1} max={bars.length-1} value={simBar} onChange={e=>simScrub(+e.target.value)} className="flex-1 min-w-24 h-1.5 accent-blue-500"/><span className="text-xs text-gray-400">Bar {simBar}/{bars.length-1} | {bars[simBar]?.date}</span></div><div className="flex gap-4 mt-1 text-xs"><span className="text-gray-400">P&L: <span className={cumPnL>=0?"text-green-400":"text-red-400"}>{cumPnL>=0?"+":""}{cumPnL.toFixed(2)}</span></span></div></div>)}
-          <div className="shrink-0 bg-gray-900 border-t border-gray-800 overflow-hidden" style={{height:bottomHeight}}>
-            <div className="flex items-center border-b border-gray-800">{["blotter","analytics"].map(tab=>(<button key={tab} onClick={()=>setBottomTab(tab)} className={`px-4 py-1.5 text-xs font-semibold uppercase ${bottomTab===tab?"text-blue-400 border-b-2 border-blue-400":"text-gray-500"}`}>{tab}</button>))}<div className="flex-1"/><button onClick={()=>setBottomHeight(h=>h===40?250:40)} className="px-2 text-gray-500 text-xs">{bottomHeight<=40?<ChevronUp size={12}/>:<ChevronDown size={12}/>}</button></div>
-            {bottomHeight>40&&<div className="overflow-auto" style={{height:bottomHeight-32}}>{bottomTab==="blotter"&&<BlotterPanel trades={result?.trades||[]} sort={blotterSort} setSort={setBlotterSort}/>}{bottomTab==="analytics"&&<AnalyticsPanel analytics={analytics}/>}</div>}
-          </div>
-        </div>
-        {showEventLog&&simRunning&&(<div className="w-72 bg-gray-900 border-l border-gray-800 flex flex-col shrink-0"><div className="flex items-center justify-between px-2 py-1.5 border-b border-gray-800"><span className="text-xs font-semibold text-gray-400 uppercase">Event Log</span><button onClick={()=>setShowEventLog(false)} className="text-gray-600 hover:text-white"><X size={12}/></button></div><EventLogPanel events={result?.events||[]}/></div>)}
-        {simRunning&&!showEventLog&&<button onClick={()=>setShowEventLog(true)} className="absolute right-1 top-12 z-10 bg-gray-800 rounded p-1 text-gray-400 hover:text-white"><List size={14}/></button>}
+        )}
       </div>
-      <div className="flex items-center px-3 py-1 bg-gray-900 border-t border-gray-800 shrink-0 text-xs text-gray-500">
-        <span>{bars.length} bars</span><span className="mx-2">|</span><span>ϕ={params.phi}° θ={params.theta}° n={params.n} α={params.alpha}</span>
-        {fitGrid&&<span className="text-purple-400 mx-2">Grid-locked</span>}
-        {manualOP&&<span className="text-yellow-400 mx-2">OP @ bar {manualOP.barIndex}</span>}
+    </nav>
+  );
+
+  // ═══ RENDER: VEHICLE CARD ═══
+  const VCard = ({v}) => (
+    <div key={v.id} className="vcard" onClick={()=>{setGalleryAngle(1);setSel(v);}}>
+      <div className="vcard-img">
+        <img src={carImg(v.make, v.model, v.year)} alt={`${v.year} ${v.make} ${v.model}`} loading="lazy"/>
+        {v.matchScore >= 85 && <div className="vcard-match">{v.matchScore}% match</div>}
+        <button className="vcard-fav" onClick={e=>{e.stopPropagation();toggleFav(v.id);}}>{favs.includes(v.id)?"❤️":"🤍"}</button>
+        <div style={{position:"absolute",bottom:8,left:8,background:"rgba(0,0,0,0.65)",color:"#fff",padding:"3px 8px",borderRadius:6,fontSize:11,fontWeight:600,backdropFilter:"blur(4px)"}}>📷 8 photos</div>
+      </div>
+      <div className="vcard-body">
+        <div className="vcard-title">{v.year} {v.make} {v.model}</div>
+        <div className="vcard-variant">{v.variant}</div>
+        <div className="vcard-price">{fmt(v.price)}</div>
+        <div className="vcard-meta">
+          <span>📏 {fmtMi(v.mileage)}</span>
+          <span>⛽ {v.fuel}</span>
+          <span>⚙️ {v.transmission}</span>
+        </div>
+        <div className="vcard-badges">
+          <span className={`badge ${v.priceRating.includes("Great")?"badge-green":v.priceRating.includes("Good")?"badge-green":"badge-gray"}`}>
+            {v.priceRating.includes("Great")?"🔥":"✅"} {v.priceRating}
+          </span>
+          {v.fuel==="Electric"&&<span className="badge badge-blue">⚡ Zero Emission</span>}
+          {v.fuel==="Hybrid"&&<span className="badge badge-blue">🌿 Hybrid</span>}
+        </div>
+        <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid var(--border-light)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <span style={{fontSize:12,color:"var(--text-muted)"}}>📍 {v.location}</span>
+          <span style={{fontSize:11,color:"var(--text-muted)",fontWeight:600}}>{v.daysListed<=3?"Just listed":v.daysListed+" days ago"}</span>
+        </div>
       </div>
     </div>
   );
-}
 
-function BlotterPanel({trades,sort,setSort}){const c=trades.filter(t=>t.eb!=null);const sorted=useMemo(()=>{const a=[...c];a.sort((a,b)=>{let va=a[sort.col],vb=b[sort.col];return sort.asc?(va||0)-(vb||0):(vb||0)-(va||0);});return a;},[c,sort]);const hdr=(col,l)=>(<th className="px-2 py-1 text-left cursor-pointer hover:text-white whitespace-nowrap" onClick={()=>setSort(s=>({col,asc:s.col===col?!s.asc:false}))}>{l}{sort.col===col?(sort.asc?"↑":"↓"):""}</th>);return(<table className="w-full text-xs"><thead className="text-gray-500 bg-gray-800/50 sticky top-0"><tr>{hdr("stratId","Strat")}{hdr("opId","OP")}{hdr("eb","Entry")}{hdr("ep","Price")}{hdr("xb","Exit")}{hdr("xp","Price")}{hdr("xt","Type")}<th className="px-2 py-1">P&L</th><th className="px-2 py-1">Bars</th></tr></thead><tbody>{sorted.map((t,i)=>{const sd=STRATEGY_DEFS[t.stratId];const pnl=t.xt==="FAIL"?null:sd.dir==="BUY"?t.xp-t.ep:t.ep-t.xp;return(<tr key={i} className={`border-b border-gray-800/30 ${t.xt==="FAIL"?"text-orange-400":pnl>0?"text-green-300":"text-red-300"}`}><td className="px-2 py-1">{t.stratId}</td><td className="px-2 py-1">#{t.opId}</td><td className="px-2 py-1">{t.eb??"-"}</td><td className="px-2 py-1">{t.ep?.toFixed(2)??"-"}</td><td className="px-2 py-1">{t.xb??"-"}</td><td className="px-2 py-1">{t.xp?.toFixed(2)??"-"}</td><td className="px-2 py-1">{t.xt==="TP"?"✓TP":t.xt==="SL"?"✗SL":"⚠"}</td><td className="px-2 py-1">{pnl!=null?`${pnl>=0?"+":""}${pnl.toFixed(2)}`:"-"}</td><td className="px-2 py-1">{t.xb!=null&&t.eb!=null?t.xb-t.eb:"-"}</td></tr>);})}{sorted.length===0&&<tr><td colSpan={9} className="text-center py-4 text-gray-600">No trades</td></tr>}</tbody></table>);}
-function AnalyticsPanel({analytics:a}){if(!a||a.totalTrades===0)return<div className="p-4 text-center text-gray-600 text-xs">No trades</div>;return(<div className="p-3"><div className="grid grid-cols-5 gap-2 mb-3"><MC l="Trades" v={a.totalTrades}/><MC l="Win%" v={`${a.winRate}%`} c={a.winRate>=50?"text-green-400":"text-red-400"}/><MC l="P&L" v={a.totalPnL.toFixed(2)} c={a.totalPnL>=0?"text-green-400":"text-red-400"}/><MC l="PF" v={a.profitFactor===Infinity?"∞":a.profitFactor} c={a.profitFactor>=1?"text-green-400":"text-red-400"}/><MC l="MaxDD" v={a.maxDD.toFixed(2)} c="text-red-400"/><MC l="Sharpe" v={a.sharpe}/><MC l="AvgP&L" v={a.avgPnL.toFixed(2)} c={a.avgPnL>=0?"text-green-400":"text-red-400"}/><MC l="W/L" v={`${a.wins}/${a.losses}`}/><MC l="AvgBars" v={a.avgBarsHeld}/><MC l="FAILs" v={a.fails} c={a.fails>0?"text-orange-400":""}/></div>{a.equityCurve.length>0&&<div className="h-40"><ResponsiveContainer width="100%" height="100%"><ComposedChart data={a.equityCurve}><XAxis dataKey="idx" tick={{fontSize:9,fill:"#666"}}/><YAxis tick={{fontSize:9,fill:"#666"}}/><Tooltip contentStyle={{background:"#1f2937",border:"1px solid #374151",fontSize:11}}/><Area type="monotone" dataKey="drawdown" fill="rgba(239,68,68,0.15)" stroke="none"/><Line type="monotone" dataKey="equity" stroke="#3b82f6" strokeWidth={1.5} dot={false}/></ComposedChart></ResponsiveContainer></div>}</div>);}
-function EventLogPanel({events}){const ref=useRef(null);const[as,setAs]=useState(true);const[f,setF]=useState("all");useEffect(()=>{if(as&&ref.current)ref.current.scrollTop=ref.current.scrollHeight;},[events.length,as]);const fl=f==="all"?events:events.filter(e=>e.type===f);const d=fl.slice(-500);const cl={op:"text-yellow-400",trade:"text-green-400",fail:"text-orange-400",system:"text-gray-500"};return(<div className="flex flex-col flex-1 overflow-hidden"><div className="flex items-center gap-1 px-2 py-1 border-b border-gray-800">{["all","op","trade","fail","system"].map(x=>(<button key={x} onClick={()=>setF(x)} className={`px-1.5 py-0.5 rounded text-xs ${f===x?"bg-gray-700 text-white":"text-gray-500"}`}>{x}</button>))}<div className="flex-1"/><button onClick={()=>setAs(a=>!a)} className={`text-xs px-1.5 py-0.5 rounded ${as?"bg-blue-600/30 text-blue-400":"text-gray-500"}`}>{as?"⇣":"⇡"}</button></div><div ref={ref} className="flex-1 overflow-y-auto p-1" style={{fontSize:"10px"}}>{d.map((ev,i)=>(<div key={i} className={`py-0.5 leading-tight ${cl[ev.type]||"text-gray-500"}`}><span className="text-gray-600">Bar {ev.barIdx}|{ev.date}|</span>{ev.msg}</div>))}</div></div>);}
-function MC({l,v,c}){return<div className="bg-gray-800 rounded p-1.5"><div className="text-xs text-gray-500 truncate">{l}</div><div className={`text-sm font-semibold ${c||"text-white"}`}>{v}</div></div>;}
-function PI({label,value,min,max,step,onChange}){const[lc,setLc]=useState(String(value));useEffect(()=>{setLc(String(value));},[value]);const cm=()=>{const v=parseFloat(lc);if(!isNaN(v)&&v>=min&&v<=max)onChange(v);else setLc(String(value));};return(<div className="mb-1.5"><label className="block text-xs text-gray-500 mb-0.5">{label}</label><input type="number" value={lc} min={min} max={max} step={step} onChange={e=>setLc(e.target.value)} onBlur={cm} onKeyDown={e=>e.key==="Enter"&&cm()} className="w-full text-xs bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-200 focus:border-blue-500 focus:outline-none"/></div>);}
+  // ═══ RENDER: HOME PAGE ═══
+  const HomePage = () => (
+    <>
+      {/* Hero */}
+      <div className="hero-section">
+        <div className="hero-badge">
+          <span className="hero-badge-dot"/>
+          AI-Powered Car Search
+        </div>
+        <h1 className="hero-title">Find your perfect car<br/>with AI</h1>
+        <p className="hero-sub">
+          Describe what you need in plain English. CarGPT searches 450,000+ vehicles, compares prices, and even negotiates deals for you.
+        </p>
+        <div className="ai-search-box">
+          <span className="ai-search-icon">✨</span>
+          <input className={`ai-search-input${voiceActive==="main"?" voice-listening":""}`} placeholder={voiceActive==="main"?"Listening...":"Try \"family SUV under £25k with low insurance\"..."}
+            value={heroIn} onChange={e=>setHeroIn(e.target.value)}
+            onKeyDown={e=>{if(e.key==="Enter")sendChat(heroIn);}}/>
+          <button className={`btn-mic hero-mic${voiceActive==="main"?" active":""}`} onClick={()=>toggleVoice("main",(t)=>{setHeroIn(t);setChatIn(t);})} title="Voice search">{voiceActive==="main"?stopSvg:micSvg}</button>
+          <button className="ai-search-btn" onClick={()=>sendChat(heroIn)}>Search with AI</button>
+        </div>
+        <div className="quick-actions">
+          {["I need a family car","Show me EVs","Budget under £15k","What's the best deal?","I'm a new driver","Compare the premium cars"].map(q =>
+            <button key={q} className="quick-action" onClick={()=>sendChat(q)}>{q}</button>
+          )}
+        </div>
+      </div>
+
+      {/* AI Tools Quick Access */}
+      <div className="section">
+        <div className="section-head">
+          <div>
+            <div className="section-title">AI Tools</div>
+            <div className="section-subtitle">Everything you need to buy, own, and maintain your car</div>
+          </div>
+          <button className="section-link" onClick={()=>setShowTools(true)}>View all →</button>
+        </div>
+        <div className="tools-grid">
+          {[
+            {icon:"🤖",label:"AI Agents",desc:"Autonomous assistants",key:"agents"},
+            {icon:"🔎",label:"Vehicle Check",desc:"DVLA + HPI history",key:"hpi"},
+            {icon:"💳",label:"Finance Calc",desc:"PCP, HP & PCH",key:"finance"},
+            {icon:"🎯",label:"Deal Checker",desc:"Price analysis",key:"deal"},
+            {icon:"⚖️",label:"Compare",desc:"Side by side",key:"compare"},
+            {icon:"💷",label:"Sell My Car",desc:"Instant valuation",key:"valuation"},
+            {icon:"🌍",label:"ULEZ Checker",desc:"London compliance",key:"ulez"},
+            {icon:"📊",label:"Cost Dashboard",desc:"Track expenses",key:"costs"},
+          ].map(t =>
+            <div key={t.key} className="tool-card" onClick={()=>openModal(t.key)}>
+              <div className="tool-icon">{t.icon}</div>
+              <div className="tool-label">{t.label}</div>
+              <div className="tool-desc">{t.desc}</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Top Matches */}
+      <div className="section">
+        <div className="section-head">
+          <div>
+            <div className="section-title">Top Matches For You</div>
+            <div className="section-subtitle">{V.length} vehicles available</div>
+          </div>
+          <button className="section-link" onClick={()=>{setPage("search");setSel(null);}}>Browse all →</button>
+        </div>
+        <div className="vehicle-grid">
+          {[...V].sort((a,b)=>b.matchScore-a.matchScore).slice(0,4).map(v => VCard({v}))}
+        </div>
+      </div>
+
+      {/* Recently Listed */}
+      <div className="section" style={{paddingBottom:80}}>
+        <div className="section-head">
+          <div>
+            <div className="section-title">Just Listed</div>
+            <div className="section-subtitle">Added in the last 7 days</div>
+          </div>
+        </div>
+        <div className="vehicle-grid">
+          {[...V].sort((a,b)=>a.daysListed-b.daysListed).slice(0,4).map(v => VCard({v}))}
+        </div>
+      </div>
+    </>
+  );
+
+  // ═══ RENDER: SEARCH PAGE ═══
+  const saveCurrentSearch = () => {
+    if (!user) { setAuthModal("login"); return; }
+    const parts = [];
+    if (aiSearchQuery) parts.push(`"${aiSearchQuery}"`);
+    else {
+      if(fFuel!=="All") parts.push(fFuel);
+      if(fBody!=="All") parts.push(fBody);
+      if(fTrans!=="All") parts.push(fTrans);
+      if(fPrice==="u15") parts.push("Under £15k"); else if(fPrice==="u20") parts.push("Under £20k"); else if(fPrice==="u25") parts.push("Under £25k"); else if(fPrice==="u30") parts.push("Under £30k"); else if(fPrice==="25+") parts.push("Over £25k");
+      if(fInsurance==="low") parts.push("Low insurance");
+      if(fUlez==="yes") parts.push("ULEZ");
+      if(!parts.length) parts.push("All cars");
+    }
+    const name = parts.join(" · ");
+    const newSearch = {id:Date.now(),name,filters:{fuel:fFuel,body:fBody,price:fPrice,trans:fTrans,miles:fMiles,year:fYear,insurance:fInsurance,ulez:fUlez,colour:fColour,doors:fDoors,query:aiSearchQuery},alertFreq:"instant",created:new Date().toISOString().split("T")[0],matchCount:filtered.length};
+    setSavedSearches(p=>[newSearch,...p]);
+    setNotifs(p=>[{id:Date.now(),type:"saved_search",title:"Search saved!",desc:`You'll get alerts for "${name}"`,time:"Just now",read:false,icon:"✅",color:"#059669"},...p]);
+  };
+  const deleteSearch = (id) => setSavedSearches(p=>p.filter(s=>s.id!==id));
+
+  const SearchPage = () => {
+    const FilterRow = ({label, options, value, setter}) => (
+      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:8}}>
+        <span className="text-xs font-bold text-muted" style={{width:72,flexShrink:0}}>{label}</span>
+        {options.map(o => {
+          const k = typeof o === "string" ? o : o.k;
+          const l = typeof o === "string" ? o : o.l;
+          return <button key={k} className={`filter-chip ${value===k?"active":""}`} onClick={()=>setter(k)}>{l}</button>;
+        })}
+      </div>
+    );
+
+    return (
+    <div className="section" style={{paddingBottom:80}}>
+      <div className="section-head">
+        <div style={{flex:1}}>
+          <div className="section-title">Browse Cars</div>
+          <div className="section-subtitle">
+            {filtered.length} of {V.length} vehicles
+            {aiSearchQuery && <span style={{marginLeft:6,fontStyle:"italic"}}>for "{aiSearchQuery}"</span>}
+            {activeFilterCount > 0 && <span style={{marginLeft:6}}>· {activeFilterCount} filter{activeFilterCount>1?"s":""} active</span>}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {activeFilterCount > 0 && <button className="btn btn-outline btn-sm" onClick={clearAllFilters} style={{fontSize:12,color:"var(--error)",borderColor:"#FECACA"}}>✕ Clear</button>}
+          <button className="btn btn-outline btn-sm" onClick={()=>setShowSavedSearches(!showSavedSearches)} style={{fontSize:12}}>
+            🔔 Saved ({savedSearches.length})
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={saveCurrentSearch} style={{fontSize:12}}>
+            💾 Save Search
+          </button>
+        </div>
+      </div>
+
+      {/* AI Search Query */}
+      {aiSearchQuery && (
+        <div className="card mb-3 fade-in" style={{background:"var(--primary-light)",padding:"10px 14px"}}>
+          <div className="flex justify-between items-center">
+            <div><span className="text-xs text-muted">AI Search: </span><span className="text-sm font-bold">"{aiSearchQuery}"</span></div>
+            <button onClick={()=>setAiSearchQuery("")} style={{background:"none",border:"none",cursor:"pointer",fontSize:14}}>✕</button>
+          </div>
+        </div>
+      )}
+
+      {/* Saved Searches Dropdown */}
+      {showSavedSearches && (
+        <div className="card mb-4" style={{animation:"fadeIn 0.2s ease"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div className="label-sm" style={{margin:0}}>Saved Searches</div>
+            <button onClick={()=>setShowSavedSearches(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:16}}>✕</button>
+          </div>
+          {savedSearches.length === 0 ? (
+            <div className="text-sm text-muted text-center" style={{padding:16}}>No saved searches yet. Use the filters and tap "Save Search".</div>
+          ) : savedSearches.map(s => (
+            <div key={s.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid var(--border-light)"}}>
+              <div style={{flex:1,cursor:"pointer"}} onClick={()=>{
+                clearAllFilters();
+                setFFuel(s.filters.fuel||"All");setFBody(s.filters.body||"All");setFPrice(s.filters.price||"All");
+                setFTrans(s.filters.trans||"All");setFMiles(s.filters.miles||"All");setFYear(s.filters.year||"All");
+                setFInsurance(s.filters.insurance||"All");setFUlez(s.filters.ulez||"All");
+                setFColour(s.filters.colour||"All");setFDoors(s.filters.doors||"All");
+                if(s.filters.query) setAiSearchQuery(s.filters.query);
+                setShowSavedSearches(false);
+              }}>
+                <div className="text-sm font-bold">{s.name}</div>
+                <div className="text-xs text-muted">{s.matchCount} matches · Alerts: {s.alertFreq} · Saved {s.created}</div>
+              </div>
+              <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                <select value={s.alertFreq} onChange={e=>setSavedSearches(p=>p.map(x=>x.id===s.id?{...x,alertFreq:e.target.value}:x))} style={{
+                  padding:"3px 6px",borderRadius:6,border:"1px solid var(--border-light)",fontSize:11,background:"white"
+                }}>
+                  <option value="instant">Instant</option>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="off">Off</option>
+                </select>
+                <button onClick={()=>deleteSearch(s.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"var(--text-muted)"}}>🗑️</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Primary Filters */}
+      <div className="card mb-3" style={{padding:"14px 16px"}}>
+        <FilterRow label="Fuel" options={["All","Petrol","Diesel","Electric","Hybrid"]} value={fFuel} setter={setFFuel}/>
+        <FilterRow label="Body" options={["All","Hatchback","Saloon","SUV"]} value={fBody} setter={setFBody}/>
+        <FilterRow label="Price" options={[
+          {k:"All",l:"All"},{k:"u15",l:"Under £15k"},{k:"u20",l:"Under £20k"},{k:"u25",l:"Under £25k"},{k:"u30",l:"Under £30k"},{k:"25+",l:"Over £25k"}
+        ]} value={fPrice} setter={setFPrice}/>
+        <FilterRow label="Gearbox" options={["All","Automatic","Manual"]} value={fTrans} setter={setFTrans}/>
+
+        {/* Expandable advanced filters */}
+        {showMoreFilters && (<>
+          <FilterRow label="Mileage" options={[
+            {k:"All",l:"All"},{k:"u10",l:"Under 10k"},{k:"u20",l:"Under 20k"},{k:"u30",l:"Under 30k"},{k:"u50",l:"Under 50k"}
+          ]} value={fMiles} setter={setFMiles}/>
+          <FilterRow label="Year" options={[
+            {k:"All",l:"All"},{k:"2024+",l:"2024+"},{k:"2022+",l:"2022+"},{k:"2020+",l:"2020+"}
+          ]} value={fYear} setter={setFYear}/>
+          <FilterRow label="Insurance" options={[
+            {k:"All",l:"All"},{k:"low",l:"Low (1-15)"},{k:"mid",l:"Mid (16-25)"},{k:"high",l:"High (26+)"}
+          ]} value={fInsurance} setter={setFInsurance}/>
+          <FilterRow label="ULEZ" options={[
+            {k:"All",l:"All"},{k:"yes",l:"✅ Compliant"},{k:"no",l:"❌ Not compliant"}
+          ]} value={fUlez} setter={setFUlez}/>
+          <FilterRow label="Colour" options={["All",...[...new Set(V.map(v=>v.colour))].sort()]} value={fColour} setter={setFColour}/>
+          <FilterRow label="Doors" options={[{k:"All",l:"All"},{k:"3",l:"3 door"},{k:"5",l:"5 door"}]} value={fDoors} setter={setFDoors}/>
+        </>)}
+
+        <button onClick={()=>setShowMoreFilters(!showMoreFilters)} style={{
+          background:"none",border:"none",cursor:"pointer",fontSize:12,fontWeight:600,
+          color:"var(--primary)",padding:"4px 0",marginTop:4
+        }}>
+          {showMoreFilters ? "− Fewer filters" : `+ More filters (mileage, year, insurance, ULEZ, colour...)`}
+        </button>
+      </div>
+
+      {/* Sort bar */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",marginBottom:8}}>
+        <div className="text-xs text-muted">{filtered.length} result{filtered.length!==1?"s":""}</div>
+        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+          {[{k:"match",l:"Best Match"},{k:"price-low",l:"Price ↑"},{k:"price-high",l:"Price ↓"},{k:"newest",l:"Newest"},{k:"miles-low",l:"Low Miles"},{k:"deal",l:"Best Deal"},{k:"insurance",l:"Low Insurance"}].map(s=>
+            <button key={s.k} onClick={()=>setFSort(s.k)} style={{
+              padding:"4px 10px",borderRadius:100,border:"none",fontSize:11,fontWeight:600,cursor:"pointer",
+              background:fSort===s.k?"var(--primary)":"#F3F4F6",color:fSort===s.k?"white":"var(--text-muted)"
+            }}>{s.l}</button>
+          )}
+        </div>
+      </div>
+
+      {/* No results */}
+      {filtered.length === 0 ? (
+        <div className="card" style={{textAlign:"center",padding:40}}>
+          <div style={{fontSize:48,marginBottom:12}}>🔍</div>
+          <div className="text-md font-bold mb-2">No cars match your filters</div>
+          <div className="text-sm text-muted mb-4">Try relaxing some filters or clearing the search</div>
+          <button className="btn btn-primary" onClick={clearAllFilters}>Clear all filters</button>
+        </div>
+      ) : (
+        <div className="vehicle-grid">{filtered.map(v => VCard({v}))}</div>
+      )}
+    </div>
+    );
+  };
+
+  // ═══ RENDER: FAVOURITES ═══
+  const FavouritesPage = () => {
+    if (!user) return (
+      <div className="section" style={{paddingBottom:80,textAlign:"center"}}>
+        <div style={{padding:"60px 20px"}}>
+          <div style={{fontSize:48,marginBottom:16}}>❤️</div>
+          <div className="text-lg font-extra mb-2">Save cars you love</div>
+          <div className="text-sm text-muted mb-4">Log in to save favourites and access them from any device</div>
+          <button className="btn btn-primary" onClick={()=>setAuthModal("login")}>Log in to get started</button>
+        </div>
+      </div>
+    );
+    return (
+      <div className="section" style={{paddingBottom:80}}>
+        <div className="section-head">
+          <div className="section-title">❤️ Saved Cars ({favs.length})</div>
+        </div>
+        {favs.length>0 ?
+          <div className="vehicle-grid">{V.filter(v=>favs.includes(v.id)).map(v => VCard({v}))}</div> :
+          <div className="card text-center" style={{padding:60}}>
+            <div style={{fontSize:48,marginBottom:12}}>🤍</div>
+            <div className="text-md font-bold mb-2">No saved cars yet</div>
+            <div className="text-sm text-muted">Tap the heart on any car to save it here</div>
+          </div>
+        }
+      </div>
+    );
+  };
+
+  // ═══ RENDER: MESSAGES ═══
+  const MessagesPage = () => {
+    if (!user) return (
+      <div className="section" style={{paddingBottom:80,textAlign:"center"}}>
+        <div style={{padding:"60px 20px"}}>
+          <div style={{fontSize:48,marginBottom:16}}>💬</div>
+          <div className="text-lg font-extra mb-2">Your messages</div>
+          <div className="text-sm text-muted mb-4">Sign in to view your dealer conversations.</div>
+          <button className="btn btn-primary" onClick={()=>setAuthModal("login")}>Sign In</button>
+        </div>
+      </div>
+    );
+    return (
+      <div className="section" style={{paddingBottom:80}}>
+        <div className="section-head" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div className="section-title">💬 Messages</div>
+          <div className="text-sm text-muted">{conversations.length} conversation{conversations.length!==1?"s":""}</div>
+        </div>
+        {conversations.length === 0 ? (
+          <div className="text-center" style={{padding:"60px 20px"}}>
+            <div style={{fontSize:48,marginBottom:16}}>📭</div>
+            <div className="text-md font-bold mb-2">No conversations yet</div>
+            <div className="text-sm text-muted mb-4">When you message a dealer about a car, your conversations will appear here.</div>
+            <button className="btn btn-primary" onClick={()=>setPage("search")}>Browse Cars</button>
+          </div>
+        ) : (
+          <div>
+            {conversations.map(c => {
+              const dl = D.find(d=>d.id===c.dealer_id) || D[0];
+              const v = c.vehicle_id ? V.find(x=>x.id===c.vehicle_id) : null;
+              const timeAgo = c.updated_at ? (() => {
+                const diff = Date.now() - new Date(c.updated_at).getTime();
+                if (diff < 60000) return "just now";
+                if (diff < 3600000) return `${Math.floor(diff/60000)}m ago`;
+                if (diff < 86400000) return `${Math.floor(diff/3600000)}h ago`;
+                return `${Math.floor(diff/86400000)}d ago`;
+              })() : "";
+              return (
+                <div key={c.id} onClick={async ()=>{
+                  setDCtx(v ? {vehicleId:v.id,flow:"general",vehicle:v,dealer:dl} : {vehicleId:null,flow:"general",vehicle:V[0],dealer:dl});
+                  setActiveConvoId(c.id);
+                  setInboxOpen(false);
+                  setActiveModal("dealer-chat");
+                  // Load messages
+                  try {
+                    const mr = await fetch(`/api/conversations?id=${c.id}`);
+                    const data = await mr.json();
+                    if(data.messages) setDMsgs(data.messages.map(m=>({id:m.id,role:m.sender_type==="user"?"user":"bot",text:m.content,time:m.created_at})));
+                  } catch{}
+                  // Mark read
+                  fetch("/api/conversations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"mark_read",conversation_id:c.id})});
+                }} className="card" style={{
+                  display:"flex",gap:14,padding:16,marginBottom:8,cursor:"pointer",
+                  border:c.user_unread_count>0?"1.5px solid var(--primary)":"1px solid var(--border-light)",
+                  background:c.user_unread_count>0?"rgba(66,133,244,0.03)":"white"
+                }}>
+                  <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,var(--primary),#1a5cd6)",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontWeight:700,fontSize:18,flexShrink:0}}>
+                    {dl?.name?.charAt(0)||"D"}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
+                      <div className="text-sm font-bold">{dl?.name||"Dealer"}</div>
+                      <span className="text-xs text-muted">{timeAgo}</span>
+                    </div>
+                    {v && <div className="text-xs" style={{color:"var(--primary)",fontWeight:600,marginBottom:2}}>{v.year} {v.make} {v.model} · {fmt(v.price)}</div>}
+                    <div className="text-xs text-muted" style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",opacity:0.7}}>
+                      {c.last_message_preview || "Start of conversation"}
+                    </div>
+                  </div>
+                  {c.user_unread_count > 0 && (
+                    <div style={{width:24,height:24,borderRadius:"50%",background:"var(--primary)",color:"white",fontSize:11,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,alignSelf:"center"}}>
+                      {c.user_unread_count}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ═══ RENDER: GARAGE ═══
+  const GaragePage = () => {
+    if (!user) return (
+      <div className="section" style={{paddingBottom:80,textAlign:"center"}}>
+        <div style={{padding:"60px 20px"}}>
+          <div style={{fontSize:48,marginBottom:16}}>🚗</div>
+          <div className="text-lg font-extra mb-2">Your digital garage</div>
+          <div className="text-sm text-muted mb-4">Track MOT, tax, service history, and running costs for your cars</div>
+          <button className="btn btn-primary" onClick={()=>setAuthModal("login")}>Log in to get started</button>
+        </div>
+      </div>
+    );
+    return (
+    <div className="section" style={{paddingBottom:80}}>
+      <div className="section-head"><div className="section-title">🚗 My Garage</div></div>
+      {GARAGE.map(g => (
+        <div key={g.id} className="card mb-4">
+          <div className="flex gap-4 items-center mb-4">
+            <div style={{width:72,height:72,display:"flex",alignItems:"center",justifyContent:"center",background:"#F3F4F6",borderRadius:12,overflow:"hidden"}}><img src={carImg(g.make,g.model,g.year)} alt={g.make} style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
+            <div>
+              <div className="text-lg font-extra">{g.year} {g.make} {g.model}</div>
+              <div className="text-sm text-muted">{g.vrm} · {g.colour} · {g.variant}</div>
+            </div>
+          </div>
+          <div className="info-grid mb-4">
+            {[{l:"Mileage",v:fmtMi(g.mileage)},{l:"Value",v:fmt(g.value)},{l:"MOT Expires",v:g.motExpiry},{l:"Tax Due",v:g.taxExpiry}].map((s,i) =>
+              <div key={i} className="info-cell"><div className="info-val">{s.v}</div><div className="info-label">{s.l}</div></div>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button className="btn btn-primary flex-1" onClick={()=>{setValReg(g.vrm);setValResult(null);openModal("valuation");}}>💷 Value My Car</button>
+            <button className="btn btn-outline flex-1" onClick={()=>openModal("service")}>🔧 Service History</button>
+            <button className="btn btn-outline flex-1" onClick={()=>openModal("costs")}>📊 Costs</button>
+          </div>
+          <div className="divider"/>
+          <div className="label-sm">Upcoming Reminders</div>
+          <div>
+            {[{icon:"📋",label:"MOT Due",val:"31 days",c:"var(--warning)"},{icon:"💰",label:"Tax Renewal",val:"48 days"},{icon:"🔧",label:"Next Service",val:"~2,500 mi"},{icon:"🛡️",label:"Insurance",val:"94 days"}].map((r,i) =>
+              <div key={i} className="flex justify-between items-center" style={{padding:"8px 0",borderBottom:i<3?"1px solid var(--border-light)":"none"}}>
+                <span className="text-sm">{r.icon} {r.label}</span>
+                <span className="text-sm font-bold" style={{color:r.c||"var(--text)"}}>{r.val}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+    );
+  };
+
+  // ═══ RENDER: PROFILE ═══
+  const ProfilePage = () => {
+    if (!user) {
+      return (
+        <div className="section" style={{paddingBottom:80,maxWidth:500,textAlign:"center"}}>
+          <div style={{padding:"60px 20px"}}>
+            <div style={{fontSize:48,marginBottom:16}}>🔒</div>
+            <div className="text-lg font-extra mb-2">Log in to see your profile</div>
+            <div className="text-sm text-muted mb-4">Access your saved cars, garage, and preferences</div>
+            <button className="btn btn-primary" onClick={()=>setAuthModal("login")}>Log in</button>
+            <div className="text-sm text-muted" style={{marginTop:12}}>
+              Don't have an account? <button style={{background:"none",border:"none",color:"var(--primary)",fontWeight:700,cursor:"pointer"}} onClick={()=>setAuthModal("signup")}>Sign up free</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="section" style={{paddingBottom:80, maxWidth:600}}>
+        <div className="text-center mb-4" style={{padding:20}}>
+          <div style={{
+            width:72,height:72,borderRadius:"50%",margin:"0 auto 12px",
+            background:"linear-gradient(135deg,var(--primary),#1a5cd6)",
+            display:"flex",alignItems:"center",justifyContent:"center",
+            color:"white",fontSize:28,fontWeight:800
+          }}>{user.name?.charAt(0)?.toUpperCase()||"U"}</div>
+          <div className="text-lg font-extra">{user.name}</div>
+          <div className="text-sm text-muted">{user.plan==="pro"?"CarGPT Pro Member":"CarGPT Free"}</div>
+        </div>
+        <div className="tabs mb-4">
+          {["account","prefs","about"].map(t =>
+            <button key={t} className={`tab-btn ${profTab===t?"active":""}`} onClick={()=>setProfTab(t)}>
+              {t==="account"?"Account":t==="prefs"?"Preferences":"About"}
+            </button>
+          )}
+        </div>
+        {profTab==="account" && <div className="card">
+          {[
+            {l:"Email",v:user.email},
+            {l:"Plan",v:user.plan==="pro"?"Pro (£9.99/mo)":"Free"},
+            {l:"Saved Cars",v:`${favs.length} favourites`},
+            {l:"Joined",v:user.joined ? new Date(user.joined).toLocaleDateString("en-GB",{month:"long",year:"numeric"}) : "February 2026"},
+          ].map((r,i) =>
+            <div key={i} className="flex justify-between" style={{padding:"12px 0",borderBottom:i<3?"1px solid var(--border-light)":"none"}}>
+              <span className="text-sm text-muted">{r.l}</span><span className="text-sm font-bold">{r.v}</span>
+            </div>
+          )}
+          <button className="btn btn-outline btn-block btn-sm" style={{marginTop:16,color:"#DC2626",borderColor:"#FECACA"}} onClick={logout}>
+            Log out
+          </button>
+        </div>}
+        {profTab==="prefs" && <div className="card">
+          {["🔔 Push Notifications","📧 Email Alerts","🌙 Dark Mode","📍 Location Services"].map((p,i) =>
+            <div key={i} className="flex justify-between items-center" style={{padding:"12px 0",borderBottom:i<3?"1px solid var(--border-light)":"none"}}>
+              <span className="text-sm">{p}</span><span className="text-sm text-success font-bold">On</span>
+            </div>
+          )}
+        </div>}
+        {profTab==="about" && <div className="card">
+          <div className="text-md font-bold mb-2">CarGPT v2.0</div>
+          <div className="text-sm text-muted">AI-First Car Marketplace. 450,000+ vehicles. 15,000+ dealers. Powered by Claude AI.</div>
+        </div>}
+      </div>
+    );
+  };
+
+  // ═══ RENDER: VEHICLE DETAIL ═══
+  const DetailPage = () => {
+    if(!sel) return null;
+    const v=sel, dl=D.find(d=>d.id===v.dealerId)||D[0], fin=calcFin(v.price);
+    return (
+      <div style={{paddingBottom:80}}>
+        <div style={{padding:"16px 0"}}>
+          <button className="btn btn-secondary btn-sm" onClick={()=>setSel(null)}>← Back to results</button>
+        </div>
+        <div className="detail-layout">
+          {/* Left column */}
+          <div>
+            <div className="detail-hero-img mb-2"
+              onTouchStart={e=>{ touchStartX.current = e.touches[0].clientX; }}
+              onTouchEnd={e=>{ if(touchStartX.current===null) return; const diff = touchStartX.current - e.changedTouches[0].clientX; if(Math.abs(diff)>50){ handleGallerySwipe(diff>0?"left":"right"); } touchStartX.current=null; }}
+            ><img src={carImg(v.make, v.model, v.year, galleryAngle)} alt={`${v.year} ${v.make} ${v.model}`}/>
+              {/* Mobile swipe dots */}
+              <div className="gallery-dots">
+                {galleryAngles.map(a=><span key={a} className={`gallery-dot${galleryAngle===a?" active":""}`}/>)}
+              </div>
+            </div>
+            <div className="gallery-thumbs-row" style={{display:"flex",gap:8,marginBottom:16,overflowX:"auto",paddingBottom:4}}>
+              {[1,5,9,13,17,21,25,29].map(a=>(
+                <div key={a} onClick={()=>setGalleryAngle(a)} style={{
+                  width:80,height:52,borderRadius:8,overflow:"hidden",cursor:"pointer",flexShrink:0,
+                  border:galleryAngle===a?"2px solid var(--primary)":"2px solid transparent",
+                  background:"#F3F4F6",opacity:galleryAngle===a?1:0.7,transition:"all 0.2s"
+                }}>
+                  <img src={carImg(v.make,v.model,v.year,a)} alt={`angle ${a}`} style={{width:"100%",height:"100%",objectFit:"cover"}} loading="lazy"/>
+                </div>
+              ))}
+            </div>
+
+            <div className="tabs mb-4">
+              {["details","mot","reviews","ai"].map(t =>
+                <button key={t} className={`tab-btn ${detailTab===t?"active":""}`} onClick={()=>setDetailTab(t)}>
+                  {t==="details"?"Details & Specs":t==="mot"?"MOT History":t==="reviews"?"Reviews":"Ask AI"}
+                </button>
+              )}
+            </div>
+
+            {detailTab==="details" && <>
+              <div className="info-grid mb-4">
+                {[{l:"Engine",v:v.engineSize},{l:"Power",v:v.specs.bhp+"bhp"},{l:"0-62 mph",v:v.specs.acceleration+"s"},{l:"Economy",v:v.specs.fuelEconomy+(typeof v.specs.fuelEconomy==="number"?" mpg":"")},{l:"Boot Space",v:v.specs.bootSpace+"L"},{l:"Fuel",v:v.fuel},{l:"Gearbox",v:v.transmission},{l:"Colour",v:v.colour}].map((s,i) =>
+                  <div key={i} className="info-cell"><div className="info-val">{s.v}</div><div className="info-label">{s.l}</div></div>
+                )}
+              </div>
+
+              <div className="label-sm">Trust & Checks</div>
+              <div className="card mb-4">
+                {[{icon:v.hpiClear?"✅":"⏳",label:"HPI Check",val:v.hpiClear?"Clear":"Pending"},{icon:"📋",label:"MOT",val:`Until ${v.motExpiry}`},{icon:"🔧",label:"Service History",val:v.serviceHistory?"Full":"Partial"},{icon:"👤",label:"Previous Keepers",val:`${v.previousKeepers}`},{icon:"🌍",label:"ULEZ",val:v.ulezCompliant?"Compliant":"Not compliant"},{icon:"🛡️",label:"Insurance Group",val:`${v.insuranceGroup}/50`},{icon:"💰",label:"Road Tax",val:v.taxCost===0?"FREE":`£${v.taxCost}/yr`}].map((c,i) =>
+                  <div key={i} className="flex justify-between items-center" style={{padding:"10px 0",borderBottom:i<6?"1px solid var(--border-light)":"none"}}>
+                    <span className="text-sm">{c.icon} {c.label}</span><span className="text-sm font-bold">{c.val}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="label-sm">Features</div>
+              <div className="flex gap-2 flex-wrap mb-4">
+                {v.features.map((f,i) => <span key={i} className="badge badge-blue">{f}</span>)}
+              </div>
+            </>}
+
+            {detailTab==="mot" && <div>
+              <div className="label-sm">MOT History</div>
+              {(v.mot||[]).map((m,i) =>
+                <div key={i} className="card mb-3 fade-in">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-bold">{m.date}</span>
+                    <span className={`badge ${m.result==="Pass"?"badge-green":"badge-red"}`}>{m.result==="Pass"?"✅ Pass":"❌ Fail"}</span>
+                  </div>
+                  <div className="text-xs text-muted">Mileage: {m.mileage?.toLocaleString()}</div>
+                  {m.advisories?.length>0 && m.advisories.map((a,j) =>
+                    <div key={j} className="mt-2" style={{padding:10,background:a.includes("major")?"var(--error-light)":"var(--warning-light)",borderRadius:8}}>
+                      <div className="text-sm font-bold">{a.includes("major")?"❌":"⚠️"} {a.split("(")[0].trim()}</div>
+                      <div className="text-xs text-muted mt-1">{a.includes("minor")?"Minor — keep an eye on it.":a.includes("major")?"Major — needs fixing.":"Advisory — worth monitoring."}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>}
+
+            {detailTab==="reviews" && <div>
+              {/* Dealer rating summary */}
+              <div className="card mb-4" style={{background:"linear-gradient(135deg,#F8F9FA,#EEF2FF)"}}>
+                <div style={{display:"flex",gap:20,alignItems:"center"}}>
+                  <div style={{textAlign:"center"}}>
+                    <div style={{fontSize:42,fontWeight:800,color:"var(--primary)"}}>{dl.rating}</div>
+                    <div style={{display:"flex",gap:2,justifyContent:"center",margin:"4px 0"}}>
+                      {[1,2,3,4,5].map(s=><span key={s} style={{fontSize:16,color:s<=Math.round(dl.rating)?"#FBBF24":"#D1D5DB"}}>★</span>)}
+                    </div>
+                    <div className="text-xs text-muted">{dl.reviews} reviews</div>
+                  </div>
+                  <div style={{flex:1}}>
+                    {[{s:5,p:72},{s:4,p:20},{s:3,p:5},{s:2,p:2},{s:1,p:1}].map(r=>(
+                      <div key={r.s} style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
+                        <span style={{fontSize:11,width:8}}>{r.s}</span>
+                        <span style={{fontSize:10}}>★</span>
+                        <div style={{flex:1,height:6,background:"#E5E7EB",borderRadius:3,overflow:"hidden"}}>
+                          <div style={{width:`${r.p}%`,height:"100%",background:r.s>=4?"#FBBF24":r.s===3?"#F59E0B":"#EF4444",borderRadius:3}}/>
+                        </div>
+                        <span style={{fontSize:10,color:"var(--text-muted)",width:28,textAlign:"right"}}>{r.p}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Write review button */}
+              <button className="btn btn-outline btn-block btn-sm mb-4" onClick={()=>{
+                if(!user){setAuthModal("login");return;}
+                setReviewModal(true);setReviewStars(0);setReviewText("");setReviewSubmitted(false);
+              }}>✍️ Write a Review</button>
+
+              {/* Review list */}
+              {reviews.filter(r=>r.dealerId===dl.id).map(r=>(
+                <div key={r.id} className="card mb-3 fade-in">
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"start",marginBottom:8}}>
+                    <div>
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg,#E5E7EB,#D1D5DB)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"#6B7280"}}>{r.author.charAt(0)}</div>
+                        <div>
+                          <div className="text-sm font-bold" style={{display:"flex",alignItems:"center",gap:4}}>
+                            {r.author}
+                            {r.verified && <span style={{background:"#E8F5E9",color:"#2E7D32",fontSize:9,padding:"1px 5px",borderRadius:4,fontWeight:700}}>✓ Verified Buyer</span>}
+                          </div>
+                          <div style={{display:"flex",gap:2}}>{[1,2,3,4,5].map(s=><span key={s} style={{fontSize:12,color:s<=r.rating?"#FBBF24":"#D1D5DB"}}>★</span>)}</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted">{new Date(r.date).toLocaleDateString("en-GB",{month:"short",year:"numeric"})}</div>
+                  </div>
+                  <div className="text-sm" style={{lineHeight:1.5,color:"var(--text-secondary)"}}>{r.text}</div>
+                </div>
+              ))}
+            </div>}
+
+            {detailTab==="ai" && <div>
+              <div className="text-sm text-muted mb-3">Ask anything about this {v.make} {v.model}</div>
+              <div className="flex gap-2 flex-wrap mb-4">
+                {["Is this a good deal?","What are the running costs?","Any MOT issues?","How much is insurance?","Is it reliable?","What's the finance like?","Is it ULEZ compliant?","Should I negotiate?"].map((q,i) =>
+                  <button key={i} className="quick-action" onClick={()=>sendVMsg(q)}>{q}</button>
+                )}
+              </div>
+              {vMsgs.map((m,i) =>
+                <div key={i} className={`chat-msg ${m.role==="user"?"user":""} fade-in`} style={{marginBottom:8}}>
+                  <div className="chat-bubble">{m.text}</div>
+                  {m.quickReplies && <div className="chat-quick-replies">{m.quickReplies.map((qr,j) =>
+                    <button key={j} className="chat-qr" onClick={()=>sendVMsg(qr)}>{qr}</button>
+                  )}</div>}
+                </div>
+              )}
+              {vTyping && <div className="chat-msg fade-in"><div className="chat-bubble"><div className="typing-dots"><div className="typing-dot"/><div className="typing-dot"/><div className="typing-dot"/></div></div></div>}
+              <div ref={vRef}/>
+              <div className="flex gap-2 mt-3">
+                <input className={`input${voiceActive==="vehicle"?" voice-listening":""}`} style={{flex:1}} placeholder={voiceActive==="vehicle"?"Listening...":"Ask about this car..."} value={vIn} onChange={e=>setVIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")sendVMsg(vIn);}}/>
+                <button className={`btn-mic${voiceActive==="vehicle"?" active":""}`} onClick={()=>toggleVoice("vehicle",setVIn)} title="Voice input">{voiceActive==="vehicle"?stopSvg:micSvg}</button>
+                <button className="btn btn-primary" onClick={()=>sendVMsg(vIn)}>Send</button>
+              </div>
+            </div>}
+          </div>
+
+          {/* Right sidebar */}
+          <div className="detail-sidebar">
+            <div className="detail-price-card">
+              <div className="detail-price">{fmt(v.price)}</div>
+              <div className="flex gap-2 items-center mb-3">
+                <span className={`badge ${v.priceRating.includes("Great")?"badge-green":"badge-green"}`}>{v.priceRating}</span>
+                <span className="text-xs text-muted">{fmtMi(v.mileage)} · {v.year} · {v.location}</span>
+              </div>
+              <div className="detail-actions-grid">
+                <button className="btn btn-primary" onClick={()=>openDChat(v.id)}>💬 Message</button>
+                <button className="btn btn-outline" onClick={()=>openDChat(v.id,"testDrive")}>📅 Test Drive</button>
+                <button className="btn btn-outline" onClick={()=>{setHpiReg(v.vrm);setHpiResult(null);setHpiPremium(false);openModal("hpi");}}>🔎 Check</button>
+                <button className="btn btn-outline" onClick={()=>openModal("finance")}>💳 Finance</button>
+              </div>
+            </div>
+
+            <div className="card">
+              <div className="label-sm">Finance Estimate</div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm">PCP from</span>
+                <span className="text-lg font-extra text-primary">£{fin.monthly}/mo</span>
+              </div>
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-sm">HP from</span>
+                <span className="text-md font-bold">£{Math.round(fin.monthly*1.15)}/mo</span>
+              </div>
+              <button className="btn btn-secondary btn-block btn-sm" onClick={()=>openModal("finance")}>Full Finance Calculator</button>
+            </div>
+
+            <div className="card">
+              <div className="label-sm">Dealer</div>
+              <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:8}}>
+                <div style={{width:44,height:44,borderRadius:10,background:"linear-gradient(135deg,var(--primary),#1a5cd6)",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontWeight:700,fontSize:16}}>{dl.name.charAt(0)}</div>
+                <div>
+                  <div className="text-md font-bold" style={{display:"flex",alignItems:"center",gap:4}}>{dl.name} <span style={{background:"#E8F5E9",color:"#2E7D32",fontSize:10,padding:"1px 6px",borderRadius:4,fontWeight:700}}>✓ Verified</span></div>
+                  <div className="text-xs text-muted">⭐ {dl.rating} ({dl.reviews} reviews) · 📍 {dl.location}</div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:8,marginBottom:12}}>
+                <div style={{flex:1,background:"#F8F9FA",borderRadius:8,padding:"8px 10px",textAlign:"center"}}><div style={{fontSize:11,color:"var(--text-muted)"}}>Trust Score</div><div style={{fontWeight:700,color:dl.trustScore>=90?"#2E7D32":"var(--text-primary)"}}>{dl.trustScore}/100</div></div>
+                <div style={{flex:1,background:"#F8F9FA",borderRadius:8,padding:"8px 10px",textAlign:"center"}}><div style={{fontSize:11,color:"var(--text-muted)"}}>Response</div><div style={{fontWeight:700}}>{dl.responseTime}</div></div>
+              </div>
+              <button className="btn btn-primary btn-block btn-sm" onClick={()=>openDChat(v.id)}>Message Dealer</button>
+            </div>
+
+            <div className="card">
+              <div className="label-sm">More Actions</div>
+              <div className="flex flex-col gap-2">
+                <button className="btn btn-outline btn-sm btn-block" onClick={()=>{setPexResult(null);openModal("partex");}}>🔄 Part Exchange</button>
+                <button className="btn btn-outline btn-sm btn-block" onClick={()=>{setCompCars([v,V.find(x=>x.id!==v.id)||V[1]]);openModal("compare");}}>⚖️ Compare</button>
+                <button className="btn btn-outline btn-sm btn-block" onClick={()=>openModal("negotiate")}>🤝 Negotiation Coach</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ═══ RENDER: AI CHAT PANEL ═══
+  // ChatPanel is inlined in the main return to avoid remounting
+
+  // ═══ RENDER: TOOLS SIDEBAR ═══
+  const ToolsSidebar = () => {
+    if(!showTools) return null;
+    const sections = [
+      {title:"AI TOOLS",items:[{icon:"🤖",label:"AI Agents",key:"agents"},{icon:"🔎",label:"Vehicle Check",key:"hpi"},{icon:"💳",label:"Finance Calculator",key:"finance"},{icon:"🎯",label:"Deal Checker",key:"deal"},{icon:"🤝",label:"Negotiation Coach",key:"negotiate"},{icon:"⚖️",label:"Compare Cars",key:"compare"}]},
+      {title:"BUY & SELL",items:[{icon:"🔍",label:"Reg Plate Lookup",key:"reg"},{icon:"💷",label:"Sell My Car",key:"valuation"},{icon:"🔄",label:"Part Exchange",key:"partex"},{icon:"🛡️",label:"Insurance Groups",key:"insurance"},{icon:"⚡",label:"EV Calculator",key:"ev"}]},
+      {title:"MY CAR",items:[{icon:"📊",label:"Cost Dashboard",key:"costs"},{icon:"🔧",label:"Service History",key:"service"},{icon:"🏢",label:"Company Car Tax",key:"companycar"}]},
+      {title:"DAILY DRIVING",items:[{icon:"🗺️",label:"Journey Costs",key:"journey"},{icon:"⛽",label:"Fuel Prices",key:"fuel"},{icon:"📸",label:"Speed Cameras",key:"speed"},{icon:"🅿️",label:"Parking Helper",key:"parking"},{icon:"🛣️",label:"Road Trip Planner",key:"roadtrip"},{icon:"🌧️",label:"Weather Alerts",key:"weather"}]},
+      {title:"UK TOOLS",items:[{icon:"🌍",label:"ULEZ Checker",key:"ulez"},{icon:"📋",label:"MOT Explainer",key:"mot"}]},
+      {title:"EMERGENCY",items:[{icon:"🚨",label:"Accident Helper",key:"accident"},{icon:"⚠️",label:"Warning Lights",key:"warning"},{icon:"📋",label:"Fines & Legal",key:"fines"}]},
+      {title:"LEARN TO DRIVE",items:[{icon:"📝",label:"Theory Test Prep",key:"theory"},{icon:"👨‍🏫",label:"Find Instructor",key:"instructor"},{icon:"🔰",label:"First Car Guide",key:"firstcar"}]},
+      {title:"CAR CARE",items:[{icon:"🧽",label:"Car Wash Finder",key:"carwash"},{icon:"🔵",label:"Tyre Finder",key:"tyres"},{icon:"🔧",label:"Garage Finder",key:"garagefinder"},{icon:"🛠️",label:"DIY Guides",key:"diy"},{icon:"📦",label:"Parts Prices",key:"parts"}]},
+    ];
+    return (<>
+      <div style={{position:"fixed",inset:0,zIndex:200,background:"transparent"}} onClick={()=>setShowTools(false)}/>
+      <div className="tools-sidebar">
+        {sections.map(sec => (
+          <div key={sec.title}>
+            <div className="tools-section-title">{sec.title}</div>
+            {sec.items.map(item =>
+              <button key={item.key} className="tools-item" onClick={()=>openModal(item.key)}>
+                <span className="tools-item-icon">{item.icon}</span>{item.label}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </>);
+  };
+
+  // ═══ RENDER: NOTIFICATION PANEL ═══
+  const [notifTab, setNotifTab] = useState("all");
+  const NotifPanel = () => {
+    if(!showNotifs) return null;
+    const filteredNotifs = notifTab==="all" ? notifs : notifTab==="unread" ? notifs.filter(n=>!n.read) : notifs.filter(n=>n.type===notifTab);
+    return (<>
+      <div style={{position:"fixed",inset:0,zIndex:150,background:"transparent"}} onClick={()=>setShowNotifs(false)}/>
+      <div className="notif-panel">
+        <div className="notif-header">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div className="text-md font-bold">Notifications</div>
+            {unreadCount > 0 && <button onClick={markAllRead} style={{background:"none",border:"none",color:"var(--primary)",fontSize:12,fontWeight:600,cursor:"pointer"}}>Mark all read</button>}
+          </div>
+          <div style={{display:"flex",gap:4,marginTop:8,overflowX:"auto"}}>
+            {[{key:"all",label:"All"},{key:"unread",label:`Unread (${unreadCount})`},{key:"price_drop",label:"💰 Price"},{key:"saved_search",label:"🔔 Searches"},{key:"mot_reminder",label:"📋 MOT"}].map(t=>
+              <button key={t.key} onClick={()=>setNotifTab(t.key)} style={{
+                padding:"4px 10px",borderRadius:100,border:"none",fontSize:11,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",
+                background:notifTab===t.key?"var(--primary)":"#F3F4F6",color:notifTab===t.key?"white":"var(--text-muted)"
+              }}>{t.label}</button>
+            )}
+          </div>
+        </div>
+        {filteredNotifs.length === 0 ? (
+          <div style={{padding:"40px 20px",textAlign:"center"}}>
+            <div style={{fontSize:32,marginBottom:8}}>✅</div>
+            <div className="text-sm text-muted">All caught up!</div>
+          </div>
+        ) : filteredNotifs.map(n =>
+          <div key={n.id} className="notif-item" style={{background:n.read?"transparent":"#F0F7FF",borderLeft:n.read?"3px solid transparent":`3px solid ${n.color||"var(--primary)"}`}} onClick={()=>{
+            markRead(n.id);setShowNotifs(false);
+            if(n.type==="price_drop"&&n.vehicleIdx!=null)setSel(V[n.vehicleIdx]);
+            if(n.type==="new_match"&&n.vehicleIdx!=null)setSel(V[n.vehicleIdx]);
+            if(n.type==="agent")openModal("agents");
+            if(n.type==="saved_search"){setPage("search");setSel(null);}
+            if(n.type==="dealer_response")openModal("dealer-chat");
+          }}>
+            <div className="flex gap-3">
+              <div style={{width:36,height:36,borderRadius:10,background:`${n.color||"#E5E7EB"}15`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{n.icon}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"start"}}>
+                  <div className="text-sm font-bold" style={{color:n.read?"var(--text-muted)":"var(--text-primary)"}}>{n.title}</div>
+                  {!n.read && <div style={{width:8,height:8,borderRadius:"50%",background:"var(--primary)",flexShrink:0,marginTop:4}}/>}
+                </div>
+                <div className="text-xs text-muted" style={{marginTop:2}}>{n.desc}</div>
+                <div className="text-xs text-muted" style={{marginTop:4,opacity:0.7}}>{n.time}</div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </>);
+  };
+
+  // ═══ MODAL CONTENT RENDERERS ═══
+  const renderModalContent = () => {
+    switch(activeModal) {
+      // FINANCE
+      case "finance": {
+        const v=sel||V[0], fin=calcFin(v.price);
+        return <SlideOver show={true} onClose={closeModal} title="💳 Finance Calculator">
+          <div className="text-sm text-muted mb-3">{v.year} {v.make} {v.model} — {fmt(v.price)}</div>
+          <div className="tabs mb-4">{["PCP","HP","PCH"].map(t=><button key={t} className={`tab-btn ${finType===t?"active":""}`} onClick={()=>setFinType(t)}>{t}</button>)}</div>
+          <div className="mb-3"><div className="text-xs text-muted mb-1">Deposit: {fmt(finDep)}</div><input type="range" min={0} max={v.price*0.5} step={500} value={finDep} onChange={e=>setFinDep(+e.target.value)} style={{width:"100%"}}/></div>
+          <div className="mb-4"><div className="text-xs text-muted mb-1">Term: {finTerm} months</div><input type="range" min={12} max={60} step={12} value={finTerm} onChange={e=>setFinTerm(+e.target.value)} style={{width:"100%"}}/></div>
+          <div className="card mb-3" style={{background:"var(--primary-light)",border:"1px solid var(--primary)"}}>
+            <div className="text-center">
+              <div className="text-xs text-muted">Monthly Payment</div>
+              <div style={{fontSize:36,fontWeight:800,color:"var(--primary)"}}>£{fin.monthly}</div>
+              <div className="text-xs text-muted">{fin.apr}% APR · {finType}{finType==="PCP"?` · Balloon: ${fmt(fin.balloon)}`:""}</div>
+            </div>
+          </div>
+          <div className="card">{[{l:"Cash Price",v:fmt(v.price)},{l:"Deposit",v:fmt(finDep)},{l:"Total Payable",v:fmt(fin.total)},{l:"Interest",v:fmt(fin.total-v.price)}].map((r,i)=><div key={i} className="flex justify-between" style={{padding:"8px 0",borderBottom:i<3?"1px solid var(--border-light)":"none"}}><span className="text-sm text-muted">{r.l}</span><span className="text-sm font-bold">{r.v}</span></div>)}</div>
+        </SlideOver>;
+      }
+
+      // HPI / VEHICLE CHECK
+      case "hpi":
+        return <SlideOver show={true} onClose={()=>{closeModal();setHpiResult(null);setHpiPremium(false);}} title="🔎 Vehicle Check">
+          <div className="text-sm text-muted mb-3">Enter any reg to check a vehicle's history</div>
+          <div className="flex gap-2 mb-4">
+            <input className="input input-mono flex-1" placeholder="Enter reg (e.g. AB21 CDE)" value={hpiReg} onChange={e=>setHpiReg(e.target.value)}/>
+            <button className="btn btn-primary" onClick={doHpiCheck}>Check</button>
+          </div>
+          {hpiResult && <div className="fade-in">
+            <div className="label-sm">Free DVLA Check ✅</div>
+            <div className="card mb-3">
+              <div className="text-md font-bold mb-2">{hpiResult.car.year} {hpiResult.car.make} {hpiResult.car.model}</div>
+              {[{l:"Fuel",v:hpiResult.free.fuel},{l:"Engine",v:hpiResult.free.engineSize},{l:"Colour",v:hpiResult.free.colour},{l:"CO2",v:hpiResult.free.co2+"g/km"},{l:"Tax Status",v:hpiResult.free.taxStatus},{l:"MOT Status",v:hpiResult.free.motStatus},{l:"MOT Expires",v:hpiResult.free.motExpiry}].map((r,i)=><div key={i} className="flex justify-between" style={{padding:"6px 0",borderBottom:i<6?"1px solid var(--border-light)":"none"}}><span className="text-xs text-muted">{r.l}</span><span className="text-xs font-bold">{r.v}</span></div>)}
+            </div>
+            {!hpiPremium ? <div className="card mb-3" style={{background:"var(--primary-light)",border:"1px solid var(--primary)"}}>
+              <div className="text-center">
+                <div style={{fontSize:32}}>🛡️</div>
+                <div className="text-md font-bold mt-2">Premium HPI Check</div>
+                <div className="text-xs text-muted mt-1 mb-3">Finance, stolen, write-off, mileage, VIN</div>
+                <div className="flex gap-2 justify-center mb-3"><span className="badge badge-green">FREE with Pro</span><span className="badge badge-blue">or £2.99</span></div>
+                <button className="btn btn-primary btn-block" onClick={()=>setHpiPremium(true)}>🔓 Unlock Full Report</button>
+              </div>
+            </div> : <><div className="label-sm">🛡️ Premium Report</div>
+              <div className="card mb-3">{[{l:"💳 Finance",v:hpiResult.premium.financeOutstanding},{l:"🚔 Stolen",v:hpiResult.premium.stolen},{l:"💥 Write-Off",v:hpiResult.premium.writeOff},{l:"♻️ Scrapped",v:hpiResult.premium.scrapped},{l:"👤 Keepers",v:hpiResult.premium.keeperChanges},{l:"📏 Mileage",v:hpiResult.premium.mileageAnomaly},{l:"✈️ Import",v:hpiResult.premium.importExport},{l:"🔑 VIN",v:hpiResult.premium.vin}].map((r,i)=><div key={i} className="flex justify-between items-center" style={{padding:"8px 0",borderBottom:i<7?"1px solid var(--border-light)":"none"}}><span className="text-xs">{r.l}</span><span className="text-xs font-bold" style={{color:r.v.includes("⚠️")?"var(--error)":"var(--success)",maxWidth:"60%",textAlign:"right"}}>{r.v}</span></div>)}</div>
+              <div className="card" style={{background:hpiResult.premium.financeOutstanding.includes("⚠️")?"var(--error-light)":"var(--success-light)"}}>
+                <div className="flex gap-3 items-center"><span style={{fontSize:24}}>{hpiResult.premium.financeOutstanding.includes("⚠️")?"⚠️":"✅"}</span>
+                  <div><div className="text-sm font-bold">{hpiResult.premium.financeOutstanding.includes("⚠️")?"Issues Found":"All Clear — Safe to Buy"}</div>
+                  <div className="text-xs text-muted">{hpiResult.premium.financeOutstanding.includes("⚠️")?"Finance outstanding must be settled.":"No issues found."}</div></div>
+                </div>
+              </div>
+            </>}
+          </div>}
+        </SlideOver>;
+
+      // DEAL CHECKER
+      case "deal":
+        return <SlideOver show={true} onClose={()=>{closeModal();setDealResult(null);}} title="🎯 Deal Checker">
+          <div className="text-sm text-muted mb-3">Paste a URL or tap a car to check if it's a good deal</div>
+          <div className="flex gap-2 mb-4"><input className="input flex-1" placeholder="Paste URL or enter details..." value={dealUrl} onChange={e=>setDealUrl(e.target.value)}/><button className="btn btn-primary" onClick={()=>doDealCheck()}>Check</button></div>
+          {dealResult && <div className="card mb-4 fade-in" style={{background:"var(--primary-light)",border:"1px solid var(--primary)"}}>
+            <div className="flex justify-between items-center mb-2"><div className="text-sm font-bold">{dealResult.vehicle.year} {dealResult.vehicle.make} {dealResult.vehicle.model}</div><span className={`badge ${dealResult.verdict==="Excellent"?"badge-green":"badge-yellow"}`}>{dealResult.verdict==="Excellent"?"🔥":"✅"} {dealResult.verdict}</span></div>
+            {[{l:"Listed",v:fmt(dealResult.vehicle.price)},{l:"Market Avg",v:fmt(dealResult.marketAvg)},{l:"You Save",v:fmt(dealResult.savings),c:"var(--success)"}].map((r,i)=><div key={i} className="flex justify-between" style={{padding:"4px 0"}}><span className="text-xs text-muted">{r.l}</span><span className="text-sm font-bold" style={{color:r.c||"inherit"}}>{r.v}</span></div>)}
+            <div className="progress mt-2"><div className="progress-fill" style={{width:`${dealResult.confidence}%`}}/></div><div className="text-xs text-muted mt-1">Confidence: {dealResult.confidence}%</div>
+          </div>}
+          <div className="label-sm">Quick Check</div>
+          {V.slice(0,4).map(v=><div key={v.id} className="card card-clickable mb-2" onClick={()=>doDealCheck(v)}><div className="flex justify-between items-center"><div><div className="text-sm font-bold">{v.year} {v.make} {v.model}</div><div className="text-xs text-muted">{fmtMi(v.mileage)} · {v.fuel}</div></div><div style={{textAlign:"right"}}><div className="text-sm font-bold">{fmt(v.price)}</div><span className={`badge ${v.priceRating.includes("Great")?"badge-green":"badge-gray"}`}>{v.priceRating}</span></div></div></div>)}
+        </SlideOver>;
+
+      // COMPARE
+      case "compare":
+        return <SlideOver show={true} onClose={closeModal} title="⚖️ Compare Cars">
+          <div className="flex gap-2 mb-4">{compCars.map((c,i)=><select key={i} className="input" value={c.id} onChange={e=>{const nc=[...compCars];nc[i]=V.find(v=>v.id===+e.target.value)||V[0];setCompCars(nc);}} style={{flex:1}}>{V.map(v=><option key={v.id} value={v.id}>{v.make} {v.model}</option>)}</select>)}</div>
+          <div className="flex gap-2 mb-4">{compCars.map((c,i)=><div key={i} style={{flex:1,textAlign:"center"}}><div style={{width:"100%",height:80,borderRadius:8,overflow:"hidden",background:"#F3F4F6",marginBottom:4}}><img src={carImg(c.make,c.model,c.year)} alt={c.make} style={{width:"100%",height:"100%",objectFit:"cover"}}/></div><div className="text-xs font-bold">{c.make} {c.model}</div></div>)}</div>
+          {[{l:"Price",k:v=>fmt(v.price)},{l:"Year",k:v=>""+v.year},{l:"Mileage",k:v=>fmtMi(v.mileage)},{l:"Fuel",k:v=>v.fuel},{l:"Power",k:v=>v.specs.bhp+"bhp"},{l:"0-62",k:v=>v.specs.acceleration+"s"},{l:"Economy",k:v=>v.specs.fuelEconomy+(typeof v.specs.fuelEconomy==="number"?" mpg":"")},{l:"Boot",k:v=>v.specs.bootSpace+"L"},{l:"Insurance",k:v=>"Grp "+v.insuranceGroup},{l:"Tax",k:v=>v.taxCost===0?"FREE":"£"+v.taxCost+"/yr"},{l:"ULEZ",k:v=>v.ulezCompliant?"✅":"❌"},{l:"Rating",k:v=>v.priceRating}].map((r,i)=><div key={i} className="flex" style={{borderBottom:"1px solid var(--border-light)",padding:"10px 0"}}><div className="text-xs text-muted" style={{width:80,flexShrink:0}}>{r.l}</div>{compCars.map((c,j)=><div key={j} className="text-sm font-bold" style={{flex:1,textAlign:"center"}}>{r.k(c)}</div>)}</div>)}
+          <div className="flex gap-2 mt-4">{compCars.map((c,i)=><button key={i} className="btn btn-primary flex-1" onClick={()=>{setSel(c);closeModal();}}>View {c.make}</button>)}</div>
+        </SlideOver>;
+
+      // AGENTS
+      case "agents":
+        return <SlideOver show={true} onClose={()=>{closeModal();setAgentSteps([]);setAgentRunning(false);setAgentType(null);}} title="🤖 AI Agents">
+          {!agentType ? <>
+            <div className="text-sm text-muted mb-4">Autonomous AI assistants that act on your behalf</div>
+            {[{key:"hunt",icon:"🔍",name:"Deal Hunter",desc:"Monitors 450K+ listings for great deals"},{key:"testdrive",icon:"📅",name:"Test Drive Booker",desc:"Arranges test drives across dealers"},{key:"negotiate",icon:"💰",name:"Price Negotiator",desc:"Contacts dealers with offers"},{key:"partex",icon:"🔄",name:"Part-Ex Agent",desc:"Gets valuations from multiple dealers"},{key:"finance",icon:"💳",name:"Finance Shopper",desc:"Compares 12+ lender offers"},{key:"paperwork",icon:"📋",name:"Paperwork Agent",desc:"Handles V5C, insurance, tax"}].map(a =>
+              <div key={a.key} className="card card-clickable mb-2" onClick={()=>runAgent(a.key)}>
+                <div className="flex justify-between items-center"><div className="flex gap-3 items-center"><span style={{fontSize:24}}>{a.icon}</span><div><div className="text-sm font-bold">{a.name}</div><div className="text-xs text-muted">{a.desc}</div></div></div><span className="badge badge-blue">▶ Run</span></div>
+              </div>
+            )}
+          </> : <>
+            <div className="text-sm text-muted mb-3">{agentRunning?"Agent working...":"Results"}</div>
+            {agentSteps.map((s,i)=><div key={i} className="step-item fade-in"><div className={`step-dot ${i<agentSteps.length-1||!agentRunning?"step-done":"step-active"}`}>{i<agentSteps.length-1||!agentRunning?"✓":"⟳"}</div><div className="text-sm" style={{paddingTop:3,whiteSpace:"pre-line"}}>{s.t}</div></div>)}
+            <div className="progress mt-3"><div className="progress-fill" style={{width:`${agentRunning?Math.min(90,agentSteps.length*25):100}%`}}/></div>
+            {!agentRunning&&agentSteps.length>0&&<button className="btn btn-secondary btn-block mt-3" onClick={()=>{setAgentType(null);setAgentSteps([]);}}>← Back to Agents</button>}
+          </>}
+        </SlideOver>;
+
+      // VALUATION
+      case "valuation":
+        return <SlideOver show={true} onClose={()=>{closeModal();setValResult(null);}} title="💷 Instant Valuation">
+          <div className="text-sm text-muted mb-3">Enter your reg for a market-accurate valuation</div>
+          <div className="flex gap-2 mb-4"><input className="input input-mono flex-1" placeholder="Enter reg (e.g. AB21 CDE)" value={valReg} onChange={e=>setValReg(e.target.value)}/><button className="btn btn-primary" onClick={doValuation}>Value</button></div>
+          {valResult && <div className="fade-in">
+            <div className="card mb-3" style={{background:"var(--primary-light)"}}>
+              <div className="text-center"><div className="text-xs text-muted">Estimated Value</div><div style={{fontSize:28,fontWeight:800,color:"var(--primary)"}}>{fmt(valResult.low)} – {fmt(valResult.high)}</div><div className="text-xs text-muted mt-1">{valResult.car.year} {valResult.car.make} {valResult.car.model}</div></div>
+            </div>
+            {[{icon:"🏪",label:"Sell to Dealer",desc:"Get offers from multiple dealers"},{icon:"📱",label:"List on CarGPT",desc:"AI-assisted listing for private sale"},{icon:"🔄",label:"Part Exchange",desc:"Against a car you're buying"}].map((o,i)=><div key={i} className="card card-clickable mb-2"><div className="flex gap-3 items-center"><span style={{fontSize:20}}>{o.icon}</span><div><div className="text-sm font-bold">{o.label}</div><div className="text-xs text-muted">{o.desc}</div></div></div></div>)}
+          </div>}
+        </SlideOver>;
+
+      // ULEZ
+      case "ulez":
+        return <SlideOver show={true} onClose={()=>{closeModal();setUlezResult(null);}} title="🌍 ULEZ Checker">
+          <div className="text-sm text-muted mb-3">Enter a reg or tap a car to check</div>
+          <div className="flex gap-2 mb-4"><input className="input input-mono flex-1" placeholder="Enter reg..." value={ulezReg} onChange={e=>setUlezReg(e.target.value)}/><button className="btn btn-primary" onClick={doUlezCheck}>Check</button></div>
+          {ulezResult && <div className="card mb-3 fade-in" style={{background:ulezResult.ulezCompliant?"var(--success-light)":"var(--error-light)"}}>
+            <div className="flex justify-between items-center mb-2"><div className="text-sm font-bold">{ulezResult.year} {ulezResult.make} {ulezResult.model}</div><span className={`badge ${ulezResult.ulezCompliant?"badge-green":"badge-red"}`}>{ulezResult.ulezCompliant?"✅ Compliant":"❌ Not Compliant"}</span></div>
+            <div className="text-xs text-muted">{ulezResult.euroEmissions} · CO2: {ulezResult.co2}g/km</div>
+            {!ulezResult.ulezCompliant&&<div className="text-xs text-error mt-2">Daily charge: £12.50 in London ULEZ zone</div>}
+          </div>}
+          <div className="label-sm">All Vehicles</div>
+          {V.map(v=><div key={v.id} className="card card-clickable mb-2" onClick={()=>setUlezResult(v)}><div className="flex justify-between items-center"><div><div className="text-sm font-bold">{v.make} {v.model}</div><div className="text-xs text-muted">{v.euroEmissions} · CO2: {v.co2}g/km</div></div><span className={`badge ${v.ulezCompliant?"badge-green":"badge-red"}`}>{v.ulezCompliant?"✅":"❌"}</span></div></div>)}
+        </SlideOver>;
+
+      // REG LOOKUP
+      case "reg":
+        return <SlideOver show={true} onClose={()=>{closeModal();setRegResult(null);}} title="🔍 Reg Plate Lookup">
+          <div className="flex gap-2 mb-4"><input className="input input-mono flex-1" placeholder="Enter reg..." value={regIn} onChange={e=>setRegIn(e.target.value)}/><button className="btn btn-primary" onClick={doRegLookup}>Look Up</button></div>
+          {regResult && <div className="card fade-in">
+            <div className="text-md font-bold">{regResult.year} {regResult.make} {regResult.model}</div>
+            <div className="text-xs text-muted mb-3">{regResult.variant}</div>
+            <div className="info-grid">{[{l:"Fuel",v:regResult.fuel},{l:"Engine",v:regResult.engineSize},{l:"Colour",v:regResult.colour},{l:"MOT",v:regResult.motExpiry},{l:"Tax",v:regResult.taxCost===0?"FREE":`£${regResult.taxCost}/yr`},{l:"ULEZ",v:regResult.ulezCompliant?"✅":"❌"}].map((s,i)=><div key={i} className="info-cell"><div className="info-val" style={{fontSize:13}}>{s.v}</div><div className="info-label">{s.l}</div></div>)}</div>
+            <div className="flex gap-2 mt-3"><button className="btn btn-primary flex-1" onClick={()=>{setSel(regResult);closeModal();}}>View Details</button><button className="btn btn-outline flex-1" onClick={()=>{closeModal();openModal("finance");}}>💳 Finance</button></div>
+          </div>}
+        </SlideOver>;
+
+      // NEGOTIATE
+      case "negotiate":
+        return <SlideOver show={true} onClose={closeModal} title="🤝 Negotiation Coach">
+          {sel ? <>
+            <div className="text-sm mb-3">{sel.make} {sel.model} at {fmt(sel.price)}</div>
+            <div className="card mb-3" style={{background:"var(--primary-light)"}}>
+              <div className="text-center"><div className="text-xs text-muted">Opening Offer</div><div style={{fontSize:28,fontWeight:800,color:"var(--primary)"}}>{fmt(Math.round(sel.price*0.94))}</div><div className="text-xs text-muted">Walk-away: {fmt(Math.round(sel.price*0.97))}</div></div>
+            </div>
+            <div className="label-sm">Talking Points</div>
+            {[`Listed ${sel.daysListed} days — ${sel.daysListed>21?"more leverage":"less room"}.`,`${sel.mileage>30000?"Higher mileage = leverage":"Low mileage = less room"}.`,"Ask about upcoming price drops.","Say you're ready to buy today.","Request extras: warranty, floor mats, full tank."].map((t,i)=><div key={i} className="card mb-2 p-3"><div className="text-sm">💡 {t}</div></div>)}
+            <button className="btn btn-primary btn-block mt-3" onClick={()=>{closeModal();openModal("agents");runAgent("negotiate");}}>🤖 Let AI Negotiate</button>
+          </> : <div className="text-sm text-muted">Select a car first to get negotiation tips.</div>}
+        </SlideOver>;
+
+      // PART EXCHANGE
+      case "partex":
+        return <SlideOver show={true} onClose={()=>{closeModal();setPexResult(null);}} title="🔄 Part Exchange">
+          <div className="text-sm text-muted mb-3">Get valuations from multiple dealers</div>
+          <div className="flex gap-2 mb-4"><input className="input input-mono flex-1" placeholder="Reg (e.g. AB21 CDE)" value={pexReg} onChange={e=>setPexReg(e.target.value)}/><button className="btn btn-primary" onClick={doPartEx}>Value</button></div>
+          {pexResult && <div className="fade-in">
+            <div className="card mb-3" style={{background:"var(--primary-light)"}}><div className="text-center"><div style={{fontSize:28,fontWeight:800,color:"var(--primary)"}}>{fmt(pexResult.low)} – {fmt(pexResult.high)}</div><div className="text-xs text-muted mt-1">{pexResult.car.year} {pexResult.car.make} {pexResult.car.model}</div></div></div>
+            <div className="label-sm">Dealer Offers</div>
+            {D.slice(0,3).map((dl,i)=>{const offer=pexResult.mid+Math.round((i-1)*500);return(<div key={dl.id} className="card mb-2"><div className="flex justify-between items-center"><div><div className="text-sm font-bold">{dl.name}</div><div className="text-xs text-muted">{dl.location} · ⭐ {dl.rating}</div></div><div style={{textAlign:"right"}}><div className="text-md font-bold text-primary">{fmt(offer)}</div>{i===0&&<span className="badge badge-green">Best</span>}</div></div></div>);})}
+          </div>}
+        </SlideOver>;
+
+      // MOT
+      case "mot": {
+        const v=motCar||sel||V[0];
+        return <SlideOver show={true} onClose={closeModal} title={`🔧 MOT — ${v.make} ${v.model}`}>
+          {(v.mot||[]).map((m,i)=><div key={i} className="card mb-3 fade-in"><div className="flex justify-between mb-2"><span className="text-sm font-bold">{m.date}</span><span className={`badge ${m.result==="Pass"?"badge-green":"badge-red"}`}>{m.result==="Pass"?"✅ Pass":"❌ Fail"}</span></div><div className="text-xs text-muted">Mileage: {m.mileage?.toLocaleString()}</div>{m.advisories?.length>0&&m.advisories.map((a,j)=><div key={j} className="mt-2" style={{padding:10,background:a.includes("major")?"var(--error-light)":"var(--warning-light)",borderRadius:8}}><div className="text-sm font-bold">{a.includes("major")?"❌":"⚠️"} {a.split("(")[0].trim()}</div><div className="text-xs text-muted mt-1">{a.includes("minor")?"Minor — keep an eye on it.":"Advisory — worth monitoring."}</div></div>)}</div>)}
+          <div className="label-sm">Check Another</div>
+          {V.filter(x=>x.id!==v.id).slice(0,3).map(v2=><div key={v2.id} className="card card-clickable mb-2" onClick={()=>setMotCar(v2)}><div className="text-sm font-bold">{v2.make} {v2.model}</div><div className="text-xs text-muted">MOT until {v2.motExpiry}</div></div>)}
+        </SlideOver>;
+      }
+
+      // EV CALCULATOR
+      case "ev":
+        return <SlideOver show={true} onClose={closeModal} title="⚡ EV Calculator">
+          <div className="text-sm text-muted mb-3">Should you go electric?</div>
+          <div className="card mb-3"><div className="text-sm font-bold mb-2">Annual Savings vs Petrol</div>{[{l:"Fuel savings",v:"£1,200–1,800/yr"},{l:"Road tax",v:"£0 (save £165)"},{l:"ULEZ",v:"£0 (save £3,125/yr if daily)"},{l:"Maintenance",v:"30-40% lower"}].map((r,i)=><div key={i} className="flex justify-between" style={{padding:"6px 0"}}><span className="text-xs text-muted">{r.l}</span><span className="text-sm font-bold text-success">{r.v}</span></div>)}</div>
+          <div className="label-sm">EVs in Stock</div>
+          {V.filter(v=>v.fuel==="Electric").map(v=><div key={v.id} className="card card-clickable mb-2" onClick={()=>{setSel(v);closeModal();}}><div className="text-sm font-bold">{v.year} {v.make} {v.model}</div><div className="text-xs text-muted">{fmt(v.price)} · {v.specs.range||250}mi range</div></div>)}
+          <div className="label-sm mt-3">Hybrids</div>
+          {V.filter(v=>v.fuel==="Hybrid").map(v=><div key={v.id} className="card card-clickable mb-2" onClick={()=>{setSel(v);closeModal();}}><div className="text-sm font-bold">{v.year} {v.make} {v.model}</div><div className="text-xs text-muted">{fmt(v.price)} · {v.specs.fuelEconomy}mpg</div></div>)}
+        </SlideOver>;
+
+      // INSURANCE
+      case "insurance":
+        return <SlideOver show={true} onClose={closeModal} title="🛡️ Insurance Groups">
+          <div className="text-sm text-muted mb-3">Compare insurance groups across all vehicles</div>
+          {[...V].sort((a,b)=>a.insuranceGroup-b.insuranceGroup).map(v=><div key={v.id} className="card card-clickable mb-2" onClick={()=>{setSel(v);closeModal();}}><div className="flex justify-between items-center"><div><div className="text-sm font-bold">{v.make} {v.model}</div><div className="text-xs text-muted">{v.variant}</div></div><div style={{textAlign:"right"}}><div className="text-md font-bold">Group {v.insuranceGroup}</div><div className="text-xs text-muted">{v.insuranceGroup<=15?"🟢 Low":v.insuranceGroup<=25?"🟡 Medium":"🔴 High"}</div></div></div></div>)}
+        </SlideOver>;
+
+      // COSTS DASHBOARD
+      case "costs": {
+        const total=EXPENSES.reduce((a,m)=>a+m.fuel+m.insurance+m.tax+m.mot+m.service+m.parking+m.tolls+m.other,0);
+        const annEst=Math.round(total*2);
+        const cats=[{l:"⛽ Fuel",v:EXPENSES.reduce((a,m)=>a+m.fuel,0)},{l:"🛡️ Insurance",v:EXPENSES.reduce((a,m)=>a+m.insurance,0)},{l:"💰 Road Tax",v:EXPENSES.reduce((a,m)=>a+m.tax,0)},{l:"📋 MOT",v:EXPENSES.reduce((a,m)=>a+m.mot,0)},{l:"🔧 Service",v:EXPENSES.reduce((a,m)=>a+m.service,0)},{l:"🅿️ Parking",v:EXPENSES.reduce((a,m)=>a+m.parking,0)}];
+        return <SlideOver show={true} onClose={closeModal} title="📊 Cost Dashboard">
+          <div className="text-sm text-muted mb-3">{GARAGE[0].year} {GARAGE[0].make} {GARAGE[0].model}</div>
+          <div className="card mb-3" style={{background:"var(--primary-light)"}}><div className="flex justify-between items-center"><div><div className="text-xs text-muted">6-Month Total</div><div style={{fontSize:24,fontWeight:800,color:"var(--primary)"}}>{fmt(total)}</div></div><div style={{textAlign:"right"}}><div className="text-xs text-muted">Est. Annual</div><div className="text-md font-bold">{fmt(annEst)}</div></div></div></div>
+          <div className="label-sm">Breakdown</div>
+          <div className="card mb-3">{cats.filter(c=>c.v>0).sort((a,b)=>b.v-a.v).map((c,i)=><div key={i}><div className="flex justify-between" style={{padding:"6px 0"}}><span className="text-xs">{c.l}</span><span className="text-xs font-bold">{fmt(c.v)}</span></div><div className="progress" style={{height:4,marginBottom:4}}><div className="progress-fill" style={{width:`${(c.v/cats[0].v)*100}%`}}/></div></div>)}</div>
+          <div className="label-sm">Monthly Trend</div>
+          <div className="card">{EXPENSES.map((m,i)=>{const t=m.fuel+m.insurance+m.tax+m.mot+m.service+m.parking+m.tolls+m.other;return(<div key={i} className="flex items-center" style={{padding:"6px 0"}}><span className="text-xs" style={{width:30}}>{m.month}</span><div style={{flex:1,margin:"0 8px"}}><div className="progress" style={{height:4,margin:0}}><div className="progress-fill" style={{width:`${(t/520)*100}%`}}/></div></div><span className="text-xs font-bold">{fmt(t)}</span></div>);})}</div>
+        </SlideOver>;
+      }
+
+      // SERVICE
+      case "service":
+        return <SlideOver show={true} onClose={closeModal} title="🔧 Service History">
+          <div className="text-sm text-muted mb-3">{GARAGE[0].year} {GARAGE[0].make} {GARAGE[0].model}</div>
+          {GARAGE[0].services?.map((s,i)=><div key={i} className="card mb-2 fade-in"><div className="flex justify-between items-center"><div><div className="text-sm font-bold">{s.type}</div><div className="text-xs text-muted">{s.date} · {s.garage}</div></div><span className="text-sm font-bold">{fmt(s.cost)}</span></div></div>)}
+          <div className="card mb-4" style={{background:"var(--primary-light)"}}><div className="text-xs text-muted">Total Spent</div><div className="text-md font-bold text-primary">{fmt(GARAGE[0].services?.reduce((a,s)=>a+s.cost,0)||0)}</div></div>
+          <div className="label-sm">Book Next Service</div>
+          {[{name:"Halfords Autocentre",price:"From £149",time:"2 days"},{name:"VW Main Dealer",price:"From £249",time:"5 days"},{name:"Kwik Fit",price:"From £129",time:"Same day"}].map((g,i)=><div key={i} className="card mb-2"><div className="flex justify-between items-center"><div><div className="text-sm font-bold">{g.name}</div><div className="text-xs text-muted">{g.price} · Available: {g.time}</div></div><button className="btn btn-primary btn-sm">Book</button></div></div>)}
+        </SlideOver>;
+
+      // COMPANY CAR TAX
+      case "companycar": {
+        const rate=bikSalary>=50271?0.40:0.20;
+        return <SlideOver show={true} onClose={closeModal} title="🏢 Company Car Tax (BIK)">
+          <div className="text-sm text-muted mb-3">Calculate Benefit in Kind tax</div>
+          <div className="mb-3"><div className="text-xs text-muted mb-1">Salary: {fmt(bikSalary)}/yr ({rate===0.40?"Higher":"Basic"} rate: {Math.round(rate*100)}%)</div><input type="range" min={25000} max={120000} step={1000} value={bikSalary} onChange={e=>setBikSalary(+e.target.value)} style={{width:"100%"}}/></div>
+          {bikCar&&<div className="card mb-3 fade-in" style={{background:"var(--primary-light)"}}><div className="text-sm font-bold mb-2">{bikCar.name}</div>{[{l:"P11D Value",v:fmt(bikCar.p11d)},{l:"BIK Rate",v:bikCar.bikRate+"%"},{l:"Taxable Benefit",v:fmt(Math.round(bikCar.p11d*bikCar.bikRate/100))+"/yr"}].map((r,i)=><div key={i} className="flex justify-between" style={{padding:"4px 0"}}><span className="text-xs text-muted">{r.l}</span><span className="text-xs font-bold">{r.v}</span></div>)}<div style={{borderTop:"1px solid var(--primary)",paddingTop:8,marginTop:4}} className="flex justify-between"><span className="text-sm font-bold">You Pay</span><span className="text-md font-bold text-primary">{fmt(Math.round(bikCar.p11d*bikCar.bikRate/100*rate))}/yr</span></div></div>}
+          <div className="label-sm">Compare Vehicles</div>
+          {BIK_DATA.map((c,i)=>{const tax=Math.round(c.p11d*c.bikRate/100*rate);return(<div key={i} className="card card-clickable mb-2" onClick={()=>setBikCar(c)}><div className="flex justify-between items-center"><div><div className="text-sm font-bold">{c.name}</div><div className="text-xs text-muted">{c.type} · CO2: {c.co2}g/km</div></div><div style={{textAlign:"right"}}><div className="text-sm font-bold" style={{color:tax<500?"var(--success)":tax<2000?"var(--warning)":"var(--error)"}}>{fmt(tax)}/yr</div></div></div></div>);})}
+        </SlideOver>;
+      }
+
+      // ACCIDENT HELPER
+      case "accident":
+        return <SlideOver show={true} onClose={()=>{closeModal();setAccidentStep(0);}} title="🚨 Accident Helper">
+          <div className="progress mb-3"><div className="progress-fill" style={{width:`${((accidentStep+1)/ACCIDENT_STEPS.length)*100}%`}}/></div>
+          <div className="text-xs text-muted mb-3">Step {accidentStep+1} of {ACCIDENT_STEPS.length}</div>
+          {(()=>{const s=ACCIDENT_STEPS[accidentStep];return(<div className="fade-in">
+            <div className="card mb-3" style={{background:accidentStep===0?"var(--error-light)":"var(--primary-light)"}}>
+              <div className="flex gap-3 items-center mb-3"><span style={{fontSize:28}}>{s.icon}</span><div className="text-md font-bold">{s.title}</div></div>
+              {s.items.map((item,i)=><div key={i} className="flex gap-2 items-center" style={{padding:"8px 0",borderBottom:i<s.items.length-1?"1px solid var(--border-light)":"none"}}><span>☐</span><span className="text-sm">{item}</span></div>)}
+            </div>
+            {accidentStep<ACCIDENT_STEPS.length-1?<button className="btn btn-primary btn-block" onClick={()=>setAccidentStep(accidentStep+1)}>{s.action} →</button>:
+              <div><div className="label-sm">Emergency Contacts</div>{[{icon:"🚔",name:"Police",num:"101"},{icon:"🚑",name:"Emergency",num:"999"},{icon:"📞",name:"Your Insurer",num:"Check policy"},{icon:"🚗",name:"RAC",num:"0330 159 1111"},{icon:"🔧",name:"AA",num:"0800 887 766"}].map((c,i)=><div key={i} className="card mb-2"><div className="flex justify-between items-center"><div className="flex gap-2 items-center"><span>{c.icon}</span><span className="text-sm font-bold">{c.name}</span></div><span className="text-sm font-bold text-primary">{c.num}</span></div></div>)}</div>
+            }
+            {accidentStep>0&&<button className="btn btn-secondary btn-block mt-2" onClick={()=>setAccidentStep(accidentStep-1)}>← Previous step</button>}
+          </div>);})()}
+        </SlideOver>;
+
+      // WARNING LIGHTS
+      case "warning":
+        return <SlideOver show={true} onClose={()=>{closeModal();setWarningResult(null);}} title="⚠️ Warning Light Decoder">
+          {warningResult ? <div className="fade-in">
+            <button className="btn btn-secondary btn-sm mb-3" onClick={()=>setWarningResult(null)}>← All Lights</button>
+            <div className="card mb-3" style={{background:warningResult.severity==="Critical"?"var(--error-light)":"var(--warning-light)"}}>
+              <div className="flex gap-3 items-center mb-3"><span style={{fontSize:32}}>{warningResult.icon}</span><div><div className="text-sm font-bold">{warningResult.name}</div><span className={`badge ${warningResult.severity==="Critical"?"badge-red":"badge-yellow"}`}>{warningResult.severity}</span></div></div>
+              <div className="label-sm" style={{margin:"8px 0 4px"}}>What It Means</div><div className="text-sm mb-2">{warningResult.meaning}</div>
+              <div className="label-sm" style={{margin:"8px 0 4px"}}>What To Do</div><div className="text-sm font-bold mb-2" style={{color:warningResult.severity==="Critical"?"var(--error)":"inherit"}}>{warningResult.action}</div>
+              <div className="label-sm" style={{margin:"8px 0 4px"}}>Estimated Cost</div><div className="text-sm font-bold text-primary">{warningResult.cost}</div>
+            </div>
+            <button className="btn btn-primary btn-block" onClick={()=>{closeModal();sendChat(`My ${GARAGE[0].make} ${GARAGE[0].model} ${warningResult.name} warning light is on. What should I do?`);}}>🤖 Ask AI for Help</button>
+          </div> : <>
+            <div className="text-sm text-muted mb-3">Identify any dashboard warning light</div>
+            {WARNING_LIGHTS.map((w,i)=><div key={i} className="card card-clickable mb-2" onClick={()=>setWarningResult(w)}><div className="flex justify-between items-center"><div className="flex gap-3 items-center"><span style={{fontSize:20}}>{w.icon}</span><div><div className="text-sm font-bold">{w.name}</div><div className="text-xs text-muted">{w.action.substring(0,40)}...</div></div></div><span className={`badge ${w.severity==="Critical"?"badge-red":"badge-yellow"}`}>{w.severity}</span></div></div>)}
+          </>}
+        </SlideOver>;
+
+      // JOURNEY COSTS
+      case "journey":
+        return <SlideOver show={true} onClose={()=>{closeModal();setJourneyResult(null);}} title="🗺️ Journey Cost Calculator">
+          <div className="text-sm text-muted mb-3">Calculate the true cost of any journey</div>
+          <input className="input mb-2" placeholder="From (e.g. London SW1)" value={journeyFrom} onChange={e=>setJourneyFrom(e.target.value)}/>
+          <input className="input mb-3" placeholder="To (e.g. Birmingham B1)" value={journeyTo} onChange={e=>setJourneyTo(e.target.value)}/>
+          <button className="btn btn-primary btn-block mb-4" onClick={doJourney}>Calculate Cost</button>
+          {journeyResult&&<div className="fade-in"><div className="card mb-3" style={{background:"var(--primary-light)"}}><div className="text-center"><div className="text-xs text-muted">Total Journey Cost</div><div style={{fontSize:28,fontWeight:800,color:"var(--primary)"}}>£{journeyResult.total.toFixed(2)}</div><div className="text-xs text-muted">{journeyResult.dist} miles · ~{journeyResult.time} mins</div></div></div>
+            <div className="card">{[{l:"⛽ Fuel",v:`£${journeyResult.fuel.toFixed(2)}`},{l:"🅿️ Parking",v:`£${journeyResult.park}`},journeyResult.tolls&&{l:`🛣️ ${journeyResult.tolls.name}`,v:`£${journeyResult.tolls.cost.toFixed(2)}`},journeyResult.cong>0&&{l:"🚦 Congestion",v:`£${journeyResult.cong}`},journeyResult.ulez>0&&{l:"🌍 ULEZ",v:`£${journeyResult.ulez}`}].filter(Boolean).map((r,i)=><div key={i} className="flex justify-between" style={{padding:"6px 0"}}><span className="text-xs text-muted">{r.l}</span><span className="text-sm font-bold">{r.v}</span></div>)}</div>
+          </div>}
+        </SlideOver>;
+
+      // FINES & LEGAL
+      case "fines":
+        return <SlideOver show={true} onClose={()=>{closeModal();setFineType(null);}} title="📋 Fines & Legal">
+          {!fineType ? <>
+            {[{key:"pcn",icon:"🅿️",name:"Parking Fine Appeal",desc:"AI drafts your appeal letter"},{key:"speed",icon:"📸",name:"Speeding Ticket Advisor",desc:"Options: accept, course, or challenge"},{key:"points",icon:"🔴",name:"Points Tracker",desc:"Track points & when they expire"},{key:"law",icon:"⚖️",name:"Motoring Law Guide",desc:"Plain English UK driving law"}].map(f=>
+              <div key={f.key} className="card card-clickable mb-2" onClick={()=>setFineType(f.key)}><div className="flex gap-3 items-center"><span style={{fontSize:24}}>{f.icon}</span><div><div className="text-sm font-bold">{f.name}</div><div className="text-xs text-muted">{f.desc}</div></div></div></div>
+            )}
+          </> : <div>
+            <button className="btn btn-secondary btn-sm mb-3" onClick={()=>setFineType(null)}>← Back</button>
+            {fineType==="pcn"&&<><div className="text-md font-bold mb-3">🅿️ Parking Fine Appeal</div><div className="card mb-3"><div className="text-sm font-bold mb-2">Common winning grounds:</div>{["Signage not clearly visible","Pay & display machine faulty","Loading/unloading within time","Grace period not given (10 min rule)","PCN not issued correctly"].map((g,i)=><div key={i} className="flex gap-2 items-center" style={{padding:"4px 0"}}><span className="text-xs">✅</span><span className="text-xs">{g}</span></div>)}</div><button className="btn btn-primary btn-block" onClick={()=>{closeModal();sendChat("I received a parking fine and want to appeal. Can you help?");}}>🤖 Start AI Appeal</button></>}
+            {fineType==="speed"&&<><div className="text-md font-bold mb-3">📸 Speeding Ticket Advisor</div><div className="card mb-3">{[{s:"1-9mph over",p:"3 pts",f:"£100",c:"✅ Course eligible"},{s:"10-20mph over",p:"3-6 pts",f:"£100-£500",c:"❌ No course"},{s:"21-30mph over",p:"4-6 pts",f:"£500+",c:"❌ No course"},{s:"30+ over",p:"6 pts",f:"£1,000+",c:"❌ Ban likely"}].map((b,i)=><div key={i} className="flex justify-between" style={{padding:"8px 0",borderBottom:i<3?"1px solid var(--border-light)":"none"}}><span className="text-xs">{b.s}</span><span className="text-xs">{b.p} · {b.f}</span><span className="text-xs">{b.c}</span></div>)}</div></>}
+            {fineType==="points"&&<><div className="text-md font-bold mb-3">🔴 Points Tracker</div><div className="card mb-3 text-center" style={{background:"var(--primary-light)"}}><div className="text-xs text-muted">Your Points</div><div style={{fontSize:36,fontWeight:800,color:"var(--primary)"}}>3</div><div className="text-xs text-muted">of 12 (ban threshold)</div><div className="progress mt-2"><div className="progress-fill" style={{width:"25%",background:"var(--success)"}}/></div></div></>}
+            {fineType==="law"&&<><div className="text-md font-bold mb-3">⚖️ Motoring Law</div>{["Can I use my phone at a red light?","What's the drink drive limit?","Are dashcams legal?","Can I eat while driving?","Do I need to carry my licence?"].map((q,i)=><div key={i} className="card card-clickable mb-2" onClick={()=>{closeModal();sendChat(q);}}><div className="text-sm">{q}</div></div>)}</>}
+          </div>}
+        </SlideOver>;
+
+      // THEORY TEST
+      case "theory":
+        return <SlideOver show={true} onClose={()=>{closeModal();setTheoryScore(null);setTheoryQ(0);}} title="📝 Theory Test Prep">
+          {theoryScore!==null ? <div className="fade-in text-center">
+            <div className="card mb-3" style={{background:theoryScore>=3?"var(--success-light)":"var(--error-light)",padding:24}}>
+              <div style={{fontSize:48}}>{theoryScore>=3?"🎉":"😕"}</div>
+              <div className="text-lg font-extra mt-2">{theoryScore}/{THEORY_QS.length} Correct</div>
+              <div className="text-sm text-muted">{theoryScore>=3?"Great! You're on track.":"Keep practising."}</div>
+            </div>
+            <button className="btn btn-primary btn-block" onClick={()=>{setTheoryScore(null);setTheoryQ(0);}}>Try Again</button>
+          </div> : theoryQ<THEORY_QS.length ? <div className="fade-in">
+            <div className="progress mb-2"><div className="progress-fill" style={{width:`${(theoryQ/THEORY_QS.length)*100}%`}}/></div>
+            <div className="text-xs text-muted mb-3">Question {theoryQ+1} of {THEORY_QS.length}</div>
+            <div className="card mb-3"><div className="text-sm font-bold">{THEORY_QS[theoryQ].q}</div></div>
+            {THEORY_QS[theoryQ].opts.map((o,i)=><button key={i} className="card card-clickable mb-2 w-full" style={{textAlign:"left"}} onClick={()=>{const correct=i===THEORY_QS[theoryQ].correct;if(theoryQ>=THEORY_QS.length-1){setTheoryScore((theoryScore||0)+(correct?1:0));}else{if(correct)setTheoryScore(s=>(s||0)+1);setTheoryQ(theoryQ+1);}}}><div className="text-sm">{o}</div></button>)}
+          </div> : null}
+        </SlideOver>;
+
+      // DEALER CHAT
+      case "dealer-chat":
+        return <SlideOver show={true} onClose={()=>{closeModal();setShowDChat(false);setActiveConvoId(null);setInboxOpen(false);}} title={inboxOpen?"💬 Messages":dCtx?`💬 ${dCtx.dealer?.name}`:"💬 Dealer"}>
+          {/* Inbox Toggle */}
+          <div style={{display:"flex",gap:8,marginBottom:12}}>
+            <button className={`filter-chip ${!inboxOpen?"active":""}`} onClick={()=>setInboxOpen(false)} style={{flex:1,textAlign:"center"}}>Chat</button>
+            <button className={`filter-chip ${inboxOpen?"active":""}`} onClick={()=>{setInboxOpen(true);loadConversations();}} style={{flex:1,textAlign:"center",position:"relative"}}>
+              Inbox {(conversations||[]).filter(c=>c.user_unread_count>0).length>0 && <span style={{width:8,height:8,borderRadius:"50%",background:"#DC2626",display:"inline-block",marginLeft:4}}/>}
+            </button>
+          </div>
+
+          {inboxOpen ? (
+            /* ── INBOX VIEW ── */
+            <div>
+              {conversations.length === 0 ? (
+                <div className="text-center" style={{padding:40}}>
+                  <div style={{fontSize:36,marginBottom:8}}>💬</div>
+                  <div className="text-sm text-muted">No conversations yet. Message a dealer to get started.</div>
+                </div>
+              ) : conversations.map(c => {
+                const dl = D.find(d=>d.id===c.dealer_id) || D[0];
+                const v = c.vehicle_id ? V.find(x=>x.id===c.vehicle_id) : null;
+                const timeAgo = c.updated_at ? (() => {
+                  const diff = Date.now() - new Date(c.updated_at).getTime();
+                  if (diff < 60000) return "just now";
+                  if (diff < 3600000) return `${Math.floor(diff/60000)}m ago`;
+                  if (diff < 86400000) return `${Math.floor(diff/3600000)}h ago`;
+                  return `${Math.floor(diff/86400000)}d ago`;
+                })() : "";
+                return (
+                  <div key={c.id} onClick={async ()=>{
+                    setInboxOpen(false);
+                    if(v) setDCtx({vehicleId:v.id,flow:"general",vehicle:v,dealer:dl});
+                    setActiveConvoId(c.id);
+                    // Load messages
+                    const mr = await fetch(`/api/conversations?id=${c.id}`);
+                    const data = await mr.json();
+                    if(data.messages) setDMsgs(data.messages.map(m=>({id:m.id,role:m.sender_type==="user"?"user":"bot",text:m.content,time:m.created_at})));
+                    // Mark read
+                    fetch("/api/conversations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"mark_read",conversation_id:c.id})});
+                  }} style={{
+                    display:"flex",gap:12,padding:"14px 0",borderBottom:"1px solid var(--border-light)",
+                    cursor:"pointer",transition:"background 0.15s",alignItems:"center"
+                  }}>
+                    <div style={{width:44,height:44,borderRadius:12,background:"linear-gradient(135deg,var(--primary),#1a5cd6)",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontWeight:700,fontSize:15,flexShrink:0}}>
+                      {dl?.name?.charAt(0)||"D"}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <div className="text-sm font-bold" style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dl?.name||"Dealer"}</div>
+                        <span className="text-xs text-muted" style={{flexShrink:0,marginLeft:8}}>{timeAgo}</span>
+                      </div>
+                      {v && <div className="text-xs text-muted">{v.year} {v.make} {v.model}</div>}
+                      <div className="text-xs text-muted" style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:2,opacity:0.7}}>
+                        {c.last_message_preview || "No messages yet"}
+                      </div>
+                    </div>
+                    {c.user_unread_count > 0 && <div style={{width:20,height:20,borderRadius:"50%",background:"var(--primary)",color:"white",fontSize:10,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{c.user_unread_count}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* ── CHAT VIEW ── */
+            <>
+              {/* Vehicle context bar */}
+              {dCtx?.vehicle && (
+                <div style={{display:"flex",gap:10,padding:"10px 12px",background:"#F8F9FA",borderRadius:10,marginBottom:12,alignItems:"center"}}>
+                  <div style={{width:48,height:36,borderRadius:6,overflow:"hidden",background:"#E5E7EB",flexShrink:0}}>
+                    <img src={carImg(dCtx.vehicle.make,dCtx.vehicle.model,dCtx.vehicle.year)} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div className="text-xs font-bold" style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dCtx.vehicle.year} {dCtx.vehicle.make} {dCtx.vehicle.model}</div>
+                    <div className="text-xs text-muted">{fmt(dCtx.vehicle.price)} · {fmtMi(dCtx.vehicle.mileage)}</div>
+                  </div>
+                  <div className="text-xs" style={{color:"#059669",fontWeight:600}}>● Online</div>
+                </div>
+              )}
+              <div style={{minHeight:300,maxHeight:400,overflowY:"auto"}}>
+                {dMsgs.map((m,i)=>{
+                  const msgTime = m.time ? new Date(m.time).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}) : "";
+                  return (
+                    <div key={m.id||i} className={`chat-msg ${m.role==="user"?"user":""} fade-in`} style={{marginBottom:8}}>
+                      {m.text && <div className="chat-bubble">{m.text}</div>}
+                      {msgTime && <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2,textAlign:m.role==="user"?"right":"left",opacity:0.6}}>{msgTime}</div>}
+
+                      {/* Slot Picker Card */}
+                      {m.card?.type==="slot-picker" && (
+                        <div className="card fade-in" style={{marginTop:8,padding:12}}>
+                          <div className="text-xs font-bold mb-2">📅 Available Slots</div>
+                          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                            {m.card.slots.map((s,j)=>(
+                              <button key={j} className="btn btn-outline btn-sm" style={{fontSize:12,padding:"8px 14px"}}
+                                onClick={()=>sendDMsg(s)}>{s}</button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Confirmation Card */}
+                      {m.card?.type==="confirmation" && (
+                        <div className="card fade-in" style={{marginTop:8,padding:14,background:m.card.icon==="🎉"||m.card.icon==="✅"?"var(--success-light)":"var(--primary-light)"}}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span style={{fontSize:20}}>{m.card.icon}</span>
+                            <div className="text-sm font-bold">{m.card.title}</div>
+                          </div>
+                          {m.card.lines.map((l,j)=>(
+                            <div key={j} className="flex justify-between" style={{padding:"5px 0",borderBottom:j<m.card.lines.length-1?"1px solid rgba(0,0,0,0.06)":"none"}}>
+                              <span className="text-xs text-muted">{l.label}</span>
+                              <span className={`text-xs font-bold${l.highlight?" text-primary":""}`} style={l.highlight?{fontSize:14}:{}}>{l.value}</span>
+                            </div>
+                          ))}
+                          {m.card.footer && <div className="text-xs text-muted" style={{marginTop:8,paddingTop:8,borderTop:"1px solid rgba(0,0,0,0.06)"}}>{m.card.footer}</div>}
+                        </div>
+                      )}
+
+                      {/* Finance Card */}
+                      {m.card?.type==="finance" && (
+                        <div className="card fade-in" style={{marginTop:8,padding:0,overflow:"hidden"}}>
+                          {m.card.options.map((opt,j)=>(
+                            <div key={j} style={{padding:12,borderBottom:j<m.card.options.length-1?"1px solid var(--border-light)":"none"}}>
+                              <div className="flex justify-between items-center mb-1">
+                                <div className="text-xs font-bold">{opt.name}</div>
+                                <div className="text-md font-bold text-primary">£{opt.monthly}/mo</div>
+                              </div>
+                              <div className="text-xs text-muted">{opt.desc}</div>
+                              <div className="text-xs text-muted" style={{marginTop:4}}>
+                                {opt.apr ? `${opt.apr}% APR · ` : ""}{fmt(opt.deposit)} deposit · {opt.term}mo{opt.balloon ? ` · ${fmt(opt.balloon)} balloon` : ""}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {m.quickReplies&&<div className="chat-quick-replies">{m.quickReplies.map((qr,j)=><button key={j} className="chat-qr" onClick={()=>sendDMsg(qr)}>{qr}</button>)}</div>}
+                    </div>
+                  );
+                })}
+                {dTyping&&<div className="chat-msg fade-in"><div className="chat-bubble"><div className="typing-dots"><div className="typing-dot"/><div className="typing-dot"/><div className="typing-dot"/></div></div></div>}
+                <div ref={dRef}/>
+              </div>
+              <div className="flex gap-2 mt-3">
+                <input className={`input flex-1${voiceActive==="dealer"?" voice-listening":""}`} value={dIn} onChange={e=>setDIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")sendDMsg(dIn);}} placeholder={voiceActive==="dealer"?"Listening...":"Type a message..."}/>
+                <button className={`btn-mic${voiceActive==="dealer"?" active":""}`} onClick={()=>toggleVoice("dealer",setDIn)} title="Voice input">{voiceActive==="dealer"?stopSvg:micSvg}</button>
+                <button className="btn btn-primary" onClick={()=>sendDMsg(dIn)}>Send</button>
+              </div>
+            </>
+          )}
+        </SlideOver>;
+
+      // SIMPLE PLACEHOLDER MODALS FOR REMAINING TOOLS
+      case "fuel": case "speed": case "parking": case "roadtrip": case "weather":
+      case "instructor": case "firstcar": case "carwash": case "tyres": case "garagefinder": case "diy": case "parts":
+        const titles = {fuel:"⛽ Fuel Prices",speed:"📸 Speed Cameras",parking:"🅿️ Parking Helper",roadtrip:"🛣️ Road Trip Planner",weather:"🌧️ Weather Alerts",instructor:"👨‍🏫 Find Instructor",firstcar:"🔰 First Car Guide",carwash:"🧽 Car Wash Finder",tyres:"🔵 Tyre Finder",garagefinder:"🔧 Garage Finder",diy:"🛠️ DIY Guides",parts:"📦 Parts Prices"};
+        return <SlideOver show={true} onClose={closeModal} title={titles[activeModal]||"Tool"}>
+          <div className="text-center" style={{padding:40}}>
+            <div style={{fontSize:48,marginBottom:12}}>🔧</div>
+            <div className="text-md font-bold mb-2">{titles[activeModal]}</div>
+            <div className="text-sm text-muted mb-4">This tool is available in the full CarGPT app.</div>
+            <button className="btn btn-primary" onClick={()=>{closeModal();sendChat(`Tell me about ${titles[activeModal]?.replace(/[^\w\s]/g,"")}`);}}>🤖 Ask AI Instead</button>
+          </div>
+        </SlideOver>;
+
+      default: return null;
+    }
+  };
+
+  // ═══ RENDER: AUTH MODAL ═══
+  const [aEmail, setAEmail] = useState("");
+  const [aPass, setAPass] = useState("");
+  const [aName, setAName] = useState("");
+  const [showPass, setShowPass] = useState(false);
+
+  const authSubmit = async () => {
+    const isSignup = authModal === "signup";
+    if (isSignup) {
+      await authAction("signup", aEmail, aPass, aName);
+    } else {
+      await authAction("login", aEmail, aPass);
+    }
+  };
+
+  const SB_URL = "https://ugknhpkvjlaixzopckxr.supabase.co";
+  const googleLogin = () => {
+    const redirect = window.location.origin + "/api/auth/callback";
+    window.location.href = `${SB_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirect)}`;
+  };
+  const appleLogin = () => {
+    const redirect = window.location.origin + "/api/auth/callback";
+    window.location.href = `${SB_URL}/auth/v1/authorize?provider=apple&redirect_to=${encodeURIComponent(redirect)}`;
+  };
+
+  // ═══ MAIN RENDER ═══
+  return (
+    <>
+      <style>{css}</style>
+      {Navbar()}
+      <div className="app-layout">
+        <div className="main-content">
+          {sel ? DetailPage() :
+            page==="home" ? HomePage() :
+            page==="search" ? SearchPage() :
+            page==="favourites" ? FavouritesPage() :
+            page==="messages" ? MessagesPage() :
+            page==="garage" ? GaragePage() :
+            page==="profile" ? ProfilePage() : HomePage()
+          }
+        </div>
+      </div>
+
+      {/* Tools Sidebar */}
+      {ToolsSidebar()}
+
+      {/* Notification Panel */}
+      {NotifPanel()}
+
+      {/* AI Chat */}
+      {/* AI Chat — always mounted, toggled with display */}
+      <div className="chat-panel" style={{display:chatOpen?"flex":"none"}}>
+        <div className="chat-header">
+          <div className="chat-header-title"><span className="chat-header-dot"/> CarGPT AI</div>
+          <button className="chat-close" onClick={()=>setChatOpen(false)}>✕</button>
+        </div>
+        <div className="chat-messages">
+          {msgs.map((m,i) => (
+            <div key={i} className={`chat-msg ${m.role==="user"?"user":""}`}>
+              <div className="chat-bubble">{m.text}</div>
+              {m.vehicles && <div className="chat-cars">{m.vehicles.map(v =>
+                <div key={v.id} className="chat-car-card" onClick={()=>{setSel(v);setChatOpen(false);}}>
+                  <div style={{width:48,height:36,borderRadius:6,overflow:"hidden",background:"#F3F4F6",marginBottom:4}}><img src={carImg(v.make,v.model,v.year)} alt={v.make} style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
+                  <div className="text-xs font-bold">{v.year} {v.make} {v.model}</div>
+                  <div className="text-sm font-extra text-primary">{fmt(v.price)}</div>
+                  <div className="text-xs text-muted">{fmtMi(v.mileage)} · {v.fuel}</div>
+                </div>
+              )}</div>}
+              {m.quickReplies && <div className="chat-quick-replies">{m.quickReplies.map((qr,j) =>
+                <button key={j} className="chat-qr" onClick={()=>sendChat(qr)}>{qr}</button>
+              )}</div>}
+            </div>
+          ))}
+          {typing && <div className="chat-msg fade-in"><div className="chat-bubble"><div className="typing-dots"><div className="typing-dot"/><div className="typing-dot"/><div className="typing-dot"/></div></div></div>}
+          <div ref={chatRef}/>
+        </div>
+        <div className="chat-input-area">
+          <input className={`chat-input${voiceActive==="main"?" voice-listening":""}`} placeholder={voiceActive==="main"?"Listening...":"Ask CarGPT anything..."}
+            value={chatIn} onChange={e=>setChatIn(e.target.value)}
+            onKeyDown={e=>{if(e.key==="Enter")sendChat(chatIn);}}/>
+          <button className={`btn-mic chat-mic${voiceActive==="main"?" active":""}`} onClick={()=>toggleVoice("main",(t)=>{setChatIn(t);setHeroIn(t);})} title="Voice input">{voiceActive==="main"?stopSvg:micSvg}</button>
+          <button className="chat-send" onClick={()=>sendChat(chatIn)}>↑</button>
+        </div>
+      </div>
+      {!chatOpen &&
+        <button className="chat-fab" onClick={()=>setChatOpen(true)} title="Ask CarGPT AI">✨</button>
+      }
+
+      {/* Active Modal */}
+      {renderModalContent()}
+
+      {/* Mobile Bottom Nav */}
+      <nav className="mobile-nav">
+        {[
+          {key:"home",icon:"🏠",label:"Home"},
+          {key:"search",icon:"🔍",label:"Browse"},
+          {key:"chat",icon:"✨",label:"AI Chat"},
+          {key:"messages",icon:"💬",label:"Messages"},
+          {key:"profile",icon:"👤",label:"Profile"},
+        ].map(t => (
+          <button key={t.key} className={`mob-tab ${(t.key==="chat"?chatOpen:t.key===page&&!sel)?"active":""}`}
+            onClick={()=>{
+              if(t.key==="chat"){ setChatOpen(!chatOpen); return; }
+              if((t.key==="messages") && !user){ setAuthModal("login"); return; }
+              if(t.key==="messages") loadConversations();
+              if(t.key==="profile" && !user){ setAuthModal("login"); return; }
+              setChatOpen(false); setSel(null); setPage(t.key==="profile"?"profile":t.key);
+            }}>
+            <span className="mob-tab-icon">{t.icon}</span>
+            {t.label}
+            {t.key==="messages"&&(conversations||[]).some(c=>c.user_unread_count>0)&&<span className="mob-tab-badge"/>}
+          </button>
+        ))}
+      </nav>
+
+      {/* Auth Modal — inlined to prevent re-mount on keystroke */}
+      {authModal && (
+        <div className="modal-overlay" style={{zIndex:10000}} onClick={()=>{setAuthModal(null);setAuthError("");setAEmail("");setAPass("");setAName("");}}>
+          <div style={{
+            background:"white",borderRadius:20,width:"100%",maxWidth:440,padding:0,
+            boxShadow:"0 25px 60px rgba(0,0,0,0.3)",overflow:"hidden",animation:"slideUp 0.3s ease"
+          }} onClick={e=>e.stopPropagation()}>
+            {/* Header */}
+            <div style={{padding:"32px 32px 0",textAlign:"center"}}>
+              <div style={{fontSize:28,fontWeight:800,marginBottom:4}}>
+                Car<span style={{color:"var(--primary)"}}>GPT</span>
+              </div>
+              <div style={{fontSize:18,fontWeight:700,marginTop:12}}>
+                {authModal==="signup" ? "Create your account" : "Welcome back"}
+              </div>
+              <div style={{fontSize:14,color:"var(--text-muted)",marginTop:4}}>
+                {authModal==="signup" ? "Join 50,000+ smart car buyers" : "Log in to access your saved cars"}
+              </div>
+            </div>
+
+            <div style={{padding:"24px 32px 32px"}}>
+              {/* Social OAuth Buttons */}
+              <button onClick={googleLogin} style={{
+                width:"100%",padding:"12px",borderRadius:12,border:"1.5px solid var(--border-light)",
+                background:"white",fontSize:14,fontWeight:600,cursor:"pointer",display:"flex",
+                alignItems:"center",justifyContent:"center",gap:10,marginBottom:10,transition:"all 0.2s"
+              }}
+                onMouseEnter={e=>e.currentTarget.style.background="#F9FAFB"}
+                onMouseLeave={e=>e.currentTarget.style.background="white"}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                Continue with Google
+              </button>
+
+              <button onClick={appleLogin} style={{
+                width:"100%",padding:"12px",borderRadius:12,border:"1.5px solid var(--border-light)",
+                background:"#000",color:"white",fontSize:14,fontWeight:600,cursor:"pointer",display:"flex",
+                alignItems:"center",justifyContent:"center",gap:10,marginBottom:16,transition:"all 0.2s"
+              }}>
+                <svg width="16" height="18" viewBox="0 0 16 20" fill="white"><path d="M13.54 10.68c-.02-2.17 1.77-3.22 1.85-3.27-1.01-1.47-2.58-1.67-3.14-1.7-1.33-.14-2.61.79-3.28.79-.68 0-1.73-.77-2.84-.75-1.46.02-2.81.85-3.56 2.16-1.52 2.64-.39 6.55 1.09 8.7.73 1.05 1.59 2.23 2.73 2.19 1.09-.05 1.51-.71 2.83-.71 1.32 0 1.7.71 2.84.68 1.18-.02 1.93-1.07 2.65-2.13.83-1.22 1.18-2.4 1.2-2.46-.03-.01-2.3-.88-2.32-3.5zM11.35 3.95c.6-.74 1.01-1.76.9-2.78-.87.04-1.92.58-2.54 1.31-.56.65-1.05 1.69-.92 2.68.97.08 1.96-.49 2.56-1.21z"/></svg>
+                Continue with Apple
+              </button>
+
+              {/* Divider */}
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+                <div style={{flex:1,height:1,background:"var(--border-light)"}}/>
+                <span style={{fontSize:12,color:"var(--text-muted)"}}>or continue with email</span>
+                <div style={{flex:1,height:1,background:"var(--border-light)"}}/>
+              </div>
+
+              {/* Email/Password Form */}
+              {authModal==="signup" && (
+                <div style={{marginBottom:16}}>
+                  <label style={{display:"block",fontSize:13,fontWeight:600,marginBottom:6,color:"var(--text-secondary)"}}>Full name</label>
+                  <input
+                    type="text" value={aName} onChange={e=>setAName(e.target.value)}
+                    placeholder="John Smith"
+                    style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1.5px solid var(--border-light)",fontSize:15,outline:"none",transition:"border 0.2s",boxSizing:"border-box"}}
+                    onFocus={e=>e.target.style.borderColor="var(--primary)"}
+                    onBlur={e=>e.target.style.borderColor="var(--border-light)"}
+                  />
+                </div>
+              )}
+              <div style={{marginBottom:16}}>
+                <label style={{display:"block",fontSize:13,fontWeight:600,marginBottom:6,color:"var(--text-secondary)"}}>Email address</label>
+                <input
+                  type="email" value={aEmail} onChange={e=>setAEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1.5px solid var(--border-light)",fontSize:15,outline:"none",transition:"border 0.2s",boxSizing:"border-box"}}
+                  onFocus={e=>e.target.style.borderColor="var(--primary)"}
+                  onBlur={e=>e.target.style.borderColor="var(--border-light)"}
+                  onKeyDown={e=>{if(e.key==="Enter") authSubmit();}}
+                />
+              </div>
+              <div style={{marginBottom:20}}>
+                <label style={{display:"block",fontSize:13,fontWeight:600,marginBottom:6,color:"var(--text-secondary)"}}>Password</label>
+                <div style={{position:"relative"}}>
+                  <input
+                    type={showPass?"text":"password"} value={aPass} onChange={e=>setAPass(e.target.value)}
+                    placeholder={authModal==="signup"?"Create a password (min 6 chars)":"Enter your password"}
+                    style={{width:"100%",padding:"12px 44px 12px 14px",borderRadius:10,border:"1.5px solid var(--border-light)",fontSize:15,outline:"none",transition:"border 0.2s",boxSizing:"border-box"}}
+                    onFocus={e=>e.target.style.borderColor="var(--primary)"}
+                    onBlur={e=>e.target.style.borderColor="var(--border-light)"}
+                    onKeyDown={e=>{if(e.key==="Enter") authSubmit();}}
+                  />
+                  <button onClick={()=>setShowPass(!showPass)} style={{
+                    position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",
+                    background:"none",border:"none",cursor:"pointer",fontSize:16,color:"var(--text-muted)"
+                  }}>{showPass?"🙈":"👁️"}</button>
+                </div>
+              </div>
+
+              {authError && (
+                <div style={{
+                  padding:"10px 14px",borderRadius:10,marginBottom:16,fontSize:13,fontWeight:500,
+                  background:"#FEF2F2",color:"#DC2626",border:"1px solid #FECACA"
+                }}>⚠️ {authError}</div>
+              )}
+
+              <button
+                onClick={authSubmit}
+                disabled={authBusy || !aEmail || !aPass || (authModal==="signup" && !aName)}
+                style={{
+                  width:"100%",padding:"14px",borderRadius:12,border:"none",
+                  background: (authBusy || !aEmail || !aPass) ? "#E5E7EB" : "var(--primary)",
+                  color: (authBusy || !aEmail || !aPass) ? "#9CA3AF" : "white",
+                  fontSize:15,fontWeight:700,cursor: (authBusy || !aEmail || !aPass) ? "not-allowed" : "pointer",
+                  transition:"all 0.2s"
+                }}
+              >
+                {authBusy ? "Please wait..." : authModal==="signup" ? "Create account" : "Log in"}
+              </button>
+
+              {/* Toggle login/signup */}
+              <div style={{textAlign:"center",fontSize:14,marginTop:20}}>
+                <span style={{color:"var(--text-muted)"}}>
+                  {authModal==="signup" ? "Already have an account? " : "Don't have an account? "}
+                </span>
+                <button
+                  onClick={()=>{setAuthModal(authModal==="signup"?"login":"signup");setAuthError("");}}
+                  style={{background:"none",border:"none",color:"var(--primary)",fontWeight:700,cursor:"pointer",fontSize:14}}
+                >
+                  {authModal==="signup" ? "Log in" : "Sign up free"}
+                </button>
+              </div>
+
+              {authModal==="signup" && (
+                <div style={{textAlign:"center",fontSize:11,color:"var(--text-muted)",marginTop:12}}>
+                  By signing up, you agree to CarGPT's Terms of Service and Privacy Policy
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Review Modal */}
+      {reviewModal && (
+        <div className="modal-overlay" style={{zIndex:10000}} onClick={()=>setReviewModal(false)}>
+          <div style={{background:"white",borderRadius:20,width:"100%",maxWidth:480,padding:32,boxShadow:"0 25px 60px rgba(0,0,0,0.3)",animation:"slideUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
+            {reviewSubmitted ? (
+              <div className="text-center fade-in">
+                <div style={{fontSize:48,marginBottom:12}}>🎉</div>
+                <div className="text-lg font-extra mb-2">Thank you!</div>
+                <div className="text-sm text-muted mb-4">Your review has been submitted and will appear after verification.</div>
+                <button className="btn btn-primary" onClick={()=>setReviewModal(false)}>Done</button>
+              </div>
+            ) : (<>
+              <div className="text-lg font-extra mb-1">Write a Review</div>
+              <div className="text-sm text-muted mb-4">Share your experience with this dealer</div>
+              <div className="label-sm">Your Rating</div>
+              <div style={{display:"flex",gap:6,marginBottom:20}}>
+                {[1,2,3,4,5].map(s=>(
+                  <button key={s} onClick={()=>setReviewStars(s)} style={{
+                    fontSize:32,background:"none",border:"none",cursor:"pointer",
+                    color:s<=reviewStars?"#FBBF24":"#D1D5DB",transition:"transform 0.15s",
+                    transform:s<=reviewStars?"scale(1.1)":"scale(1)"
+                  }}>★</button>
+                ))}
+                <span className="text-sm text-muted" style={{alignSelf:"center",marginLeft:8}}>
+                  {reviewStars===0?"":reviewStars===1?"Poor":reviewStars===2?"Fair":reviewStars===3?"Average":reviewStars===4?"Good":"Excellent"}
+                </span>
+              </div>
+              <div className="label-sm">Your Review</div>
+              <textarea
+                value={reviewText} onChange={e=>setReviewText(e.target.value)}
+                placeholder="Tell others about your experience buying from this dealer..."
+                style={{width:"100%",height:120,padding:14,borderRadius:10,border:"1.5px solid var(--border-light)",fontSize:14,resize:"vertical",fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}
+                onFocus={e=>e.target.style.borderColor="var(--primary)"}
+                onBlur={e=>e.target.style.borderColor="var(--border-light)"}
+              />
+              <div className="text-xs text-muted" style={{marginTop:6,marginBottom:16}}>{reviewText.length}/500 characters</div>
+              <div style={{display:"flex",gap:10}}>
+                <button className="btn btn-secondary flex-1" onClick={()=>setReviewModal(false)}>Cancel</button>
+                <button className="btn btn-primary flex-1" disabled={!reviewStars||!reviewText.trim()}
+                  onClick={()=>setReviewSubmitted(true)}
+                  style={{opacity:(!reviewStars||!reviewText.trim())?0.5:1}}
+                >Submit Review</button>
+              </div>
+            </>)}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
