@@ -1041,6 +1041,8 @@ export default function CarGPTDesktop() {
   const [activeConvoId, setActiveConvoId] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [inboxOpen, setInboxOpen] = useState(false);
+  const [dFlow, setDFlow] = useState(null); // active flow: testdrive|finance|partex|negotiate|null
+  const [dFlowData, setDFlowData] = useState({});
   const dRef = useRef(null);
   useEffect(() => { dRef.current?.scrollIntoView({behavior:"smooth"}); }, [dMsgs,dTyping]);
 
@@ -1195,17 +1197,25 @@ CRITICAL RULES:
 
 THE VEHICLE:
 `,
-    dealer: `You are the AI assistant for {DEALER_NAME} at {DEALER_LOCATION}, rated {DEALER_RATING}★.
+    dealer: `You are the AI assistant for {DEALER_NAME} at {DEALER_LOCATION}, rated {DEALER_RATING}★ ({DEALER_REVIEWS} reviews).
 
 CRITICAL RULES:
-- Keep responses to 2-3 sentences MAX. Professional but warm.
+- Keep responses to 2-3 sentences MAX. Professional but warm, like a helpful sales advisor.
 - Answer the question directly. Don't over-explain.
-- Test drive slots: Mon 10am, Tue 2pm, Wed 11am, Thu 3:30pm, Sat 10am.
-- For finance, quote PCP/HP figures from the data. Keep it brief.
-- The car IS in stock. Confirm things confidently.
-- ALWAYS end your response with exactly 3 suggested follow-up actions on a new line in this format:
-  [SUGGESTIONS: suggestion one | suggestion two | suggestion three]
-  Make them short (3-6 words), natural buyer actions like "Book a test drive", "Ask about finance", etc.
+- British English. Be confident about the car — it IS in stock.
+
+FLOW HANDLING — Detect these intents and respond naturally:
+- TEST DRIVE: Confirm enthusiasm, mention the showroom location. Time slots available.
+- FINANCE: Quote the specific PCP/HP figures from the vehicle data. Keep it brief.
+- PART EXCHANGE: Ask for their reg and current mileage so you can value it.
+- PRICE/NEGOTIATE: Acknowledge their interest, explain the car is competitively priced but you're open to discussing the full package.
+- AVAILABILITY: Confirm it's in stock and ready to view.
+- WARRANTY: Standard 3-month included, extended options available.
+- DELIVERY: Collection or delivery within 50 miles, nationwide available.
+
+ALWAYS end your response with exactly 3 suggested follow-up actions on a new line in this format:
+[SUGGESTIONS: suggestion one | suggestion two | suggestion three]
+Make them short (3-6 words), natural buyer actions.
 
 THE VEHICLE:
 `
@@ -1387,6 +1397,7 @@ THE VEHICLE:
     const v=V.find(x=>x.id===vid)||V[0], dl=D.find(d=>d.id===v.dealerId)||D[0];
     setDCtx({vehicleId:vid,flow,vehicle:v,dealer:dl});
     setShowDChat(true); setActiveModal("dealer-chat");
+    setDFlow(flow==="testDrive"?"testdrive":null); setDFlowData({});
 
     // Create or load conversation from Supabase
     try {
@@ -1422,9 +1433,9 @@ THE VEHICLE:
 
       // New conversation — send greeting
       const g=flow==="testDrive"
-        ?`Hey! 👋 Great choice on the ${v.year} ${v.make} ${v.model}. I've got slots Mon 10am, Tue 2pm, Wed 11am, Thu 3:30pm. Which works?`
+        ?`Hey! 👋 Great choice on the ${v.year} ${v.make} ${v.model}. I've got several slots available this week — pick one that works for you!`
         :`Hey! 👋 Thanks for your interest in the ${v.year} ${v.make} ${v.model} at ${fmt(v.price)}. How can I help?`;
-      const qr=flow==="testDrive"?["Mon 10am","Tue 2pm","Wed 11am","Thu 3:30pm"]:["Is it available?","📅 Test drive","💳 Finance options","🔄 Part exchange"];
+      const qr=flow==="testDrive"?["Mon 10am","Tue 2pm","Wed 11am","Thu 3:30pm","Sat 10am"]:["Is it available?","📅 Book a test drive","💳 Finance options","🔄 Part exchange","Negotiate the price"];
       setDMsgs([{role:"bot",text:g,quickReplies:qr}]);
 
       // Save greeting to DB
@@ -1437,9 +1448,9 @@ THE VEHICLE:
       console.warn("Failed to create conversation:", e);
       // Fallback to local-only
       const g=flow==="testDrive"
-        ?`Hey! 👋 Great choice on the ${v.year} ${v.make} ${v.model}. I've got slots Mon 10am, Tue 2pm, Wed 11am, Thu 3:30pm. Which works?`
+        ?`Hey! 👋 Great choice on the ${v.year} ${v.make} ${v.model}. I've got slots available this week — pick one that works for you!`
         :`Hey! 👋 Thanks for your interest in the ${v.year} ${v.make} ${v.model} at ${fmt(v.price)}. How can I help?`;
-      const qr=flow==="testDrive"?["Mon 10am","Tue 2pm","Wed 11am","Thu 3:30pm"]:["Is it available?","📅 Test drive","💳 Finance options","🔄 Part exchange"];
+      const qr=flow==="testDrive"?["Mon 10am","Tue 2pm","Wed 11am","Thu 3:30pm","Sat 10am"]:["Is it available?","📅 Book a test drive","💳 Finance options","🔄 Part exchange","Negotiate the price"];
       setDMsgs([{role:"bot",text:g,quickReplies:qr}]);
     }
   };
@@ -1448,6 +1459,7 @@ THE VEHICLE:
     if(!text?.trim())return;
     const ctx=dCtx, v=ctx?.vehicle||V[0], dl=ctx?.dealer||D[0];
     const trimmed = text.trim();
+    const lower = trimmed.toLowerCase();
     setDMsgs(p=>[...p,{role:"user",text:trimmed}]); setDIn(""); setDTyping(true);
     const fin=calcFin(v.price);
 
@@ -1460,17 +1472,269 @@ THE VEHICLE:
       });
     }
 
+    const addResp = (msg) => {
+      setDMsgs(p=>[...p,msg]);
+      setDTyping(false);
+      if (activeConvoId) {
+        const saveText = msg.text || (msg.card ? `[${msg.card.type}] ${msg.card.title||""}` : trimmed);
+        fetch("/api/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "send", conversation_id: activeConvoId, sender_type: "dealer", text: saveText }),
+        });
+        loadConversations();
+      }
+    };
+
+    const delay = (ms) => new Promise(r => setTimeout(r, ms));
+    await delay(600 + Math.random() * 800);
+
+    // ── FLOW: Test Drive Booking ──
+    if (/📅|test.?drive|book.*view|come.*see|want.*see/i.test(lower) && !dFlow) {
+      setDFlow("testdrive");
+      setDFlowData({});
+      addResp({
+        role:"bot",
+        text:`Great choice! The ${v.make} ${v.model} is ready at our ${dl.location} showroom. Pick a slot that works for you:`,
+        card: {
+          type:"slot-picker",
+          slots:["Mon 10am","Tue 2pm","Wed 11am","Thu 3:30pm","Sat 10am"],
+        }
+      });
+      return;
+    }
+
+    // Handle slot selection (in testdrive flow)
+    if (dFlow === "testdrive" && !dFlowData.slot) {
+      const slotMatch = trimmed.match(/mon|tue|wed|thu|sat|10am|2pm|11am|3:30|10 am|2 pm/i);
+      if (slotMatch || /^\w+ \d/i.test(trimmed)) {
+        setDFlowData({...dFlowData, slot: trimmed});
+        addResp({
+          role:"bot",
+          text:`Brilliant, ${trimmed} it is! Just need your name and phone number to confirm the booking.`,
+          quickReplies:["Use my account details"],
+        });
+        return;
+      }
+    }
+
+    // Handle contact details (in testdrive flow)
+    if (dFlow === "testdrive" && dFlowData.slot && !dFlowData.confirmed) {
+      const name = /use my account|my details/i.test(lower) ? (user?.name||"Customer") : trimmed.split(/[,\n]/)[0];
+      setDFlowData({...dFlowData, confirmed:true, name});
+      setDFlow(null);
+      addResp({
+        role:"bot",
+        text:`All confirmed! 🎉`,
+        card: {
+          type:"confirmation",
+          title:"Test Drive Booked",
+          icon:"📅",
+          lines:[
+            {label:"Car", value:`${v.year} ${v.make} ${v.model}`},
+            {label:"When", value:dFlowData.slot},
+            {label:"Where", value:`${dl.name}, ${dl.location}`},
+            {label:"Name", value:name},
+          ],
+          footer:"Bring your driving licence. Takes about 30 mins, no obligation.",
+        },
+        quickReplies:["Ask about finance","Get a valuation","What's included in the price?"],
+      });
+      return;
+    }
+
+    // ── FLOW: Finance Options ──
+    if (/💳|finance|monthly|pcp|hp |afford|payment/i.test(lower) && !dFlow) {
+      setDFlow("finance");
+      setDFlowData({deposit: Math.round(v.price * 0.1), term: 48});
+      const dep = Math.round(v.price * 0.1);
+      const pcpM = fin.monthly;
+      const hpM = Math.round(fin.monthly * 1.15);
+      addResp({
+        role:"bot",
+        text:`Here are your finance options on the ${v.make} ${v.model} at ${fmt(v.price)}:`,
+        card: {
+          type:"finance",
+          options:[
+            {name:"PCP", monthly:pcpM, apr:fin.apr, deposit:dep, term:48, balloon:fin.balloon, desc:"Lower monthly, option to return or buy at end"},
+            {name:"HP", monthly:hpM, apr:fin.apr+0.5, deposit:dep, term:48, balloon:0, desc:"Higher monthly, but you own it outright"},
+            {name:"PCH Lease", monthly:Math.round(v.price*0.015), apr:null, deposit:dep*3, term:48, balloon:null, desc:"Just hand it back, no ownership"},
+          ],
+          carPrice: v.price,
+        },
+        quickReplies:["Run a soft credit check","Adjust deposit amount","Which is best for me?"],
+      });
+      return;
+    }
+
+    // Handle credit check (in finance flow)
+    if (dFlow === "finance" && /credit.?check|soft.?check|check.*score|apply|eligible/i.test(lower)) {
+      setDTyping(true);
+      await delay(1500);
+      const score = 600 + Math.floor(Math.random() * 300);
+      const approved = score > 650;
+      setDFlow(null);
+      addResp({
+        role:"bot",
+        text: approved ? `Great news! 🎉 Soft check complete — no impact on your credit score.` : `We've run the check — here are your results:`,
+        card: {
+          type:"confirmation",
+          title: approved ? "Pre-Approved" : "Referred",
+          icon: approved ? "✅" : "⏳",
+          lines:[
+            {label:"Status", value: approved ? "Pre-approved" : "Referred to underwriter"},
+            {label:"Indicative APR", value:`${fin.apr}%`},
+            {label:"Monthly (PCP)", value:`£${fin.monthly}/mo`},
+            {label:"Credit Impact", value:"None (soft check)"},
+          ],
+          footer: approved ? "This is indicative. Final rate confirmed on full application." : "A specialist will review — usually 24-48 hours.",
+        },
+        quickReplies: approved ? ["Book a test drive","Proceed with application","Ask about part-exchange"] : ["Try another lender","Book a test drive","Ask a question"],
+      });
+      return;
+    }
+
+    // Handle deposit adjustment
+    if (dFlow === "finance" && /adjust|change.*deposit|lower.*deposit|higher.*deposit|deposit.*(\d)/i.test(lower)) {
+      const numMatch = lower.match(/(\d[\d,]*)/);
+      const newDep = numMatch ? parseInt(numMatch[1].replace(/,/g,"")) : Math.round(v.price * 0.15);
+      const pcpM = Math.round((v.price - newDep) / 48 * 1.08);
+      const hpM = Math.round(pcpM * 1.15);
+      setDFlowData({...dFlowData, deposit: newDep});
+      addResp({
+        role:"bot",
+        text:`Updated with ${fmt(newDep)} deposit:`,
+        card: {
+          type:"finance",
+          options:[
+            {name:"PCP", monthly:pcpM, apr:fin.apr, deposit:newDep, term:48, balloon:Math.round(v.price*0.35), desc:"Lower monthly, option to return or buy"},
+            {name:"HP", monthly:hpM, apr:fin.apr+0.5, deposit:newDep, term:48, balloon:0, desc:"Own it outright at the end"},
+          ],
+          carPrice: v.price,
+        },
+        quickReplies:["Run a soft credit check","Book a test drive","What about 60 months?"],
+      });
+      return;
+    }
+
+    // ── FLOW: Part Exchange ──
+    if (/🔄|part.?ex|trade.?in|my.?car|swap|got.*to.?sell/i.test(lower) && !dFlow) {
+      setDFlow("partex");
+      setDFlowData({});
+      addResp({
+        role:"bot",
+        text:`Happy to help with a part-exchange! What's the reg number and rough mileage of your current car?`,
+        quickReplies:["I'll type the reg","I don't have a car to trade"],
+      });
+      return;
+    }
+
+    // Handle reg input (in part-ex flow)
+    if (dFlow === "partex" && !dFlowData.valued) {
+      if (/don.?t have|no car|no trade|skip/i.test(lower)) {
+        setDFlow(null);
+        addResp({
+          role:"bot",
+          text:`No problem at all! The ${v.make} ${v.model} is ${fmt(v.price)} as it stands. Anything else I can help with?`,
+          quickReplies:["Ask about finance","Book a test drive","Negotiate the price"],
+        });
+        return;
+      }
+      // Try to parse a reg
+      const regMatch = trimmed.match(/[A-Z]{2}\d{2}\s*[A-Z]{3}/i) || trimmed.match(/\b\w{2,4}\s?\w{3}\b/i);
+      const mileMatch = lower.match(/(\d[\d,]+)\s*(k|miles|mi)/i);
+      const estMiles = mileMatch ? parseInt(mileMatch[1].replace(/,/g,"")) * (mileMatch[2]==="k"?1000:1) : 25000 + Math.floor(Math.random()*30000);
+      const pexVal = 8000 + Math.floor(Math.random()*14000);
+      const net = v.price - pexVal;
+      setDFlowData({valued:true, reg: regMatch?.[0]||trimmed.split(/\s/)[0], pexVal, miles:estMiles});
+      setDFlow(null);
+      addResp({
+        role:"bot",
+        text:`We've valued your car — here's the breakdown:`,
+        card: {
+          type:"confirmation",
+          title:"Part-Exchange Valuation",
+          icon:"🔄",
+          lines:[
+            {label:"Your Car", value: regMatch?.[0]||trimmed.split(/\s/)[0].toUpperCase()},
+            {label:"Est. Mileage", value:fmtMi(estMiles)},
+            {label:"Trade-In Value", value:fmt(pexVal)},
+            {label:v.make+" "+v.model, value:fmt(v.price)},
+            {label:"You Pay", value:fmt(Math.max(0,net)), highlight:true},
+          ],
+          footer:"Final valuation confirmed on inspection. We aim to beat online quotes.",
+        },
+        quickReplies:["Accept this valuation","Finance the remainder","Book a test drive"],
+      });
+      return;
+    }
+
+    // ── FLOW: Price Negotiation ──
+    if (/negotiate|offer|best.?price|discount|deal|knock.*off|willing.*pay|reduce/i.test(lower) && !dFlow) {
+      setDFlow("negotiate");
+      setDFlowData({});
+      addResp({
+        role:"bot",
+        text:`I understand you're looking for the best deal. The ${v.make} ${v.model} at ${fmt(v.price)} is rated "${v.priceRating}" against the market. ${v.daysListed > 21 ? "It's been with us " + v.daysListed + " days so there could be some flexibility." : "It's priced competitively but I'm open to a conversation."} What figure did you have in mind?`,
+        quickReplies:[fmt(Math.round(v.price*0.95)),fmt(Math.round(v.price*0.93)),fmt(Math.round(v.price*0.9)),"Make me an offer"],
+      });
+      return;
+    }
+
+    // Handle offer amount (in negotiate flow)
+    if (dFlow === "negotiate") {
+      const numMatch = lower.replace(/[£,]/g,"").match(/(\d{4,6})/);
+      if (numMatch) {
+        const offer = parseInt(numMatch[1]);
+        const diff = v.price - offer;
+        const pct = diff / v.price;
+        setDFlow(null);
+        if (pct <= 0.03) {
+          // Accept
+          addResp({
+            role:"bot",
+            text:`You know what — you've got yourself a deal. 🤝`,
+            card: {
+              type:"confirmation", title:"Offer Accepted!", icon:"🎉",
+              lines:[
+                {label:"Original Price", value:fmt(v.price)},
+                {label:"Your Offer", value:fmt(offer)},
+                {label:"You Save", value:fmt(diff), highlight:true},
+              ],
+              footer:"This price is held for 48 hours. Come in or call to finalise.",
+            },
+            quickReplies:["Book a test drive","Ask about finance","Reserve this car"],
+          });
+        } else if (pct <= 0.07) {
+          // Counter
+          const counter = Math.round(v.price - diff * 0.5);
+          addResp({
+            role:"bot",
+            text:`I appreciate the offer. I can't quite do ${fmt(offer)}, but I could meet you at ${fmt(counter)} — that's ${fmt(v.price - counter)} off the asking price. How does that sound?`,
+            quickReplies:["Accept " + fmt(counter), fmt(Math.round((offer+counter)/2)), "I'll think about it"],
+          });
+        } else {
+          // Too low
+          addResp({
+            role:"bot",
+            text:`I appreciate the offer, but ${fmt(offer)} is quite a stretch from our asking price of ${fmt(v.price)}. The best I could realistically do is ${fmt(Math.round(v.price * 0.95))}. Would you like to discuss the full package — finance, part-exchange, extras — to make it work for your budget?`,
+            quickReplies:["Ask about finance","Part-exchange my car","Book a test drive"],
+          });
+        }
+        return;
+      }
+    }
+
+    // ── DEFAULT: AI-powered response ──
+    // Clear flow if switching topics
+    if (dFlow && !/slot|deposit|reg|offer|accept/i.test(lower)) setDFlow(null);
+
     // Fallback responses
     const fb=()=>{const dq=text.toLowerCase();
-      if(/mon|tue|wed|thu|fri|sat|10am|2pm|11am|3:30/i.test(dq))return `Perfect! ✅ Booked you in for ${text} at our ${dl.location} showroom. Just bring your driving licence and we'll have the ${v.make} ${v.model} ready for you. Looking forward to meeting you!`;
-      if(/available|in.?stock|still.?got/i.test(dq))return `Yes! The ${v.year} ${v.make} ${v.model} is here at our ${dl.location} showroom, ready to view or test drive. Would you like to book a slot? I've got availability this week.`;
-      if(/test.?drive|view|book|come.?see/i.test(dq))return `Brilliant — I've got Mon 10am, Tue 2pm, Wed 11am, Thu 3:30pm, or Sat 10am available. Which works best for you? Takes about 30 minutes and there's no obligation.`;
-      if(/finance|monthly|pcp|hp|afford/i.test(dq))return `Great question! On PCP, you're looking at around £${fin.monthly}/mo with a ${fmt(Math.round(v.price*0.1))} deposit over ${finTerm} months. HP would be ~£${Math.round(fin.monthly*1.15)}/mo but you own it outright at the end. We work with multiple lenders so we can usually find the best rate for your circumstances. Want me to run a soft credit check? It won't affect your score.`;
-      if(/part.?ex|trade|my.?car|swap/i.test(dq))return `Happy to help with a part-exchange! If you send me your reg number and current mileage, I can get you a valuation within the hour. We aim to beat any online valuation you've had — We Buy Any Car, Motorway, etc.`;
-      if(/price|discount|offer|deal|negotiate|best.?price/i.test(dq))return `The ${v.make} ${v.model} at ${fmt(v.price)} is competitively priced — it's rated "${v.priceRating}" against the market. Rather than just knocking money off, why not come in for a viewing? We can discuss the full package — finance, part-exchange, extras — and I'm sure we can put something together that works for you.`;
-      if(/warranty|guarantee|cover/i.test(dq))return `The ${v.make} ${v.model} comes with our standard 3-month warranty included. We also offer 6-month and 12-month extended warranties if you want extra peace of mind. ${v.make==="Kia"?"Plus Kia's 7-year manufacturer warranty still has time remaining on this one — that's exceptional cover.":""}`;
-      if(/deliver|collect|bring/i.test(dq))return `We offer both! You're welcome to collect from our ${dl.location} showroom, or we can deliver within a 50-mile radius for a small fee. Nationwide delivery is also available — we'll quote based on distance.`;
-      return `The ${v.year} ${v.make} ${v.model} is a ${v.priceRating.toLowerCase()} at ${fmt(v.price)} with ${fmtMi(v.mileage)}. Would you like to book a test drive, discuss finance, or get a part-exchange valuation? I'm here to help.`;
+      if(/available|in.?stock|still.?got/i.test(dq))return `Yes! The ${v.year} ${v.make} ${v.model} is here at our ${dl.location} showroom, ready to view or test drive. Would you like to book a slot?`;
+      if(/warranty|guarantee|cover/i.test(dq))return `The ${v.make} ${v.model} comes with our standard 3-month warranty included. We also offer 6-month and 12-month extended warranties. ${v.make==="Kia"?"Plus Kia's 7-year manufacturer warranty still has time remaining — exceptional cover.":""}`;
+      if(/deliver|collect|bring/i.test(dq))return `You're welcome to collect from our ${dl.location} showroom, or we deliver within 50 miles. Nationwide also available.`;
+      return `The ${v.year} ${v.make} ${v.model} is at ${fmt(v.price)} with ${fmtMi(v.mileage)}. Would you like to book a test drive, discuss finance, or get a part-exchange valuation?`;
     };
 
     // Build dealer-persona prompt with full vehicle data
@@ -1481,7 +1745,7 @@ THE VEHICLE:
       .replace("{DEALER_RATING}", dl.rating)
       .replace("{DEALER_REVIEWS}", dl.reviews);
 
-    const hist=[...dMsgs,{role:"user",text}].map(m=>({role:m.role==="bot"?"assistant":"user",content:m.text})).filter(m=>m.content);
+    const hist=[...dMsgs,{role:"user",text}].map(m=>({role:m.role==="bot"?"assistant":"user",content:m.text||""})).filter(m=>m.content);
     const merged=[];for(const m of hist){if(merged.length>0&&merged[merged.length-1].role===m.role)merged[merged.length-1].content+="\n"+m.content;else merged.push({...m});}
     while(merged.length>0&&merged[0].role!=="user")merged.shift();
     if(!merged.length)merged.push({role:"user",content:text});
@@ -1499,22 +1763,8 @@ THE VEHICLE:
     const resp = {role:"bot", text: cleanResp};
     if (suggestions.length) {
       resp.quickReplies = suggestions;
-    } else if(/test.?drive|slot|book|view/i.test(text.toLowerCase()) && !/mon|tue|wed|thu|sat/i.test(text.toLowerCase())) {
-      resp.quickReplies = ["Mon 10am","Tue 2pm","Wed 11am","Thu 3:30pm","Sat 10am"];
     }
-    setDMsgs(p=>[...p,resp]);
-    setDTyping(false);
-
-    // Save dealer response to DB
-    if (activeConvoId) {
-      fetch("/api/conversations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "send", conversation_id: activeConvoId, sender_type: "dealer", text: cleanResp }),
-      });
-      // Refresh conversations list
-      loadConversations();
-    }
+    addResp(resp);
   };
 
   // Action functions
@@ -2775,8 +3025,57 @@ THE VEHICLE:
                   const msgTime = m.time ? new Date(m.time).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}) : "";
                   return (
                     <div key={m.id||i} className={`chat-msg ${m.role==="user"?"user":""} fade-in`} style={{marginBottom:8}}>
-                      <div className="chat-bubble">{m.text}</div>
+                      {m.text && <div className="chat-bubble">{m.text}</div>}
                       {msgTime && <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2,textAlign:m.role==="user"?"right":"left",opacity:0.6}}>{msgTime}</div>}
+
+                      {/* Slot Picker Card */}
+                      {m.card?.type==="slot-picker" && (
+                        <div className="card fade-in" style={{marginTop:8,padding:12}}>
+                          <div className="text-xs font-bold mb-2">📅 Available Slots</div>
+                          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                            {m.card.slots.map((s,j)=>(
+                              <button key={j} className="btn btn-outline btn-sm" style={{fontSize:12,padding:"8px 14px"}}
+                                onClick={()=>sendDMsg(s)}>{s}</button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Confirmation Card */}
+                      {m.card?.type==="confirmation" && (
+                        <div className="card fade-in" style={{marginTop:8,padding:14,background:m.card.icon==="🎉"||m.card.icon==="✅"?"var(--success-light)":"var(--primary-light)"}}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span style={{fontSize:20}}>{m.card.icon}</span>
+                            <div className="text-sm font-bold">{m.card.title}</div>
+                          </div>
+                          {m.card.lines.map((l,j)=>(
+                            <div key={j} className="flex justify-between" style={{padding:"5px 0",borderBottom:j<m.card.lines.length-1?"1px solid rgba(0,0,0,0.06)":"none"}}>
+                              <span className="text-xs text-muted">{l.label}</span>
+                              <span className={`text-xs font-bold${l.highlight?" text-primary":""}`} style={l.highlight?{fontSize:14}:{}}>{l.value}</span>
+                            </div>
+                          ))}
+                          {m.card.footer && <div className="text-xs text-muted" style={{marginTop:8,paddingTop:8,borderTop:"1px solid rgba(0,0,0,0.06)"}}>{m.card.footer}</div>}
+                        </div>
+                      )}
+
+                      {/* Finance Card */}
+                      {m.card?.type==="finance" && (
+                        <div className="card fade-in" style={{marginTop:8,padding:0,overflow:"hidden"}}>
+                          {m.card.options.map((opt,j)=>(
+                            <div key={j} style={{padding:12,borderBottom:j<m.card.options.length-1?"1px solid var(--border-light)":"none"}}>
+                              <div className="flex justify-between items-center mb-1">
+                                <div className="text-xs font-bold">{opt.name}</div>
+                                <div className="text-md font-bold text-primary">£{opt.monthly}/mo</div>
+                              </div>
+                              <div className="text-xs text-muted">{opt.desc}</div>
+                              <div className="text-xs text-muted" style={{marginTop:4}}>
+                                {opt.apr ? `${opt.apr}% APR · ` : ""}{fmt(opt.deposit)} deposit · {opt.term}mo{opt.balloon ? ` · ${fmt(opt.balloon)} balloon` : ""}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
                       {m.quickReplies&&<div className="chat-quick-replies">{m.quickReplies.map((qr,j)=><button key={j} className="chat-qr" onClick={()=>sendDMsg(qr)}>{qr}</button>)}</div>}
                     </div>
                   );
