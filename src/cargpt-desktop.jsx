@@ -595,7 +595,7 @@ export default function CarGPTDesktop() {
   const filtered = V.filter(v => (fFuel==="All"||v.fuel===fFuel) && (fBody==="All"||v.bodyType===fBody));
 
   // AI Chat
-  const [msgs, setMsgs] = useState([{role:"assistant",text:"Hey! 👋 I'm CarGPT — your AI car buying assistant. I've got 8 great cars in stock across London. Tell me what you're looking for — budget, lifestyle, anything — and I'll find your perfect match!",quickReplies:["Show me EVs","Family SUVs","Budget under £15k","Premium cars"]}]);
+  const [msgs, setMsgs] = useState([{role:"assistant",text:"Hey! 👋 I'm CarGPT — your AI car expert. I've got 8 brilliant cars in stock across London, from £13,495 to £31,995. I know every detail about each one — MOT history, insurance costs, running costs, finance options, the lot.\n\nTell me what you're looking for — budget, lifestyle, fuel type — or ask me anything about buying a car in the UK. What can I help with?",quickReplies:["I need a family car","Show me EVs","Budget under £15k","What's the best deal?","I'm a new driver"]}]);
   const [chatIn, setChatIn] = useState("");
   const [heroIn, setHeroIn] = useState("");
   const [typing, setTyping] = useState(false);
@@ -666,34 +666,128 @@ export default function CarGPTDesktop() {
     return {monthly:Math.round(m),apr:(apr*100).toFixed(1),balloon:Math.round(balloon),total:Math.round(m*finTerm+finDep+balloon)};
   };
 
-  const callAI = async (messages) => {
+  const callAI = async (messages, maxTokens = 1024) => {
     try {
-      const r = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages})});
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: maxTokens, messages })
+      });
+      if (!r.ok) { console.warn("AI API error:", r.status); return null; }
       const d = await r.json();
-      return (d.content||[]).filter(i=>i.type==="text").map(i=>i.text).join("\n") || null;
-    } catch(e) { await new Promise(r=>setTimeout(r,800+Math.random()*800)); return null; }
+      if (d.error) { console.warn("AI error:", d.error); return null; }
+      return (d.content || []).filter(i => i.type === "text").map(i => i.text).join("\n") || null;
+    } catch (e) { console.warn("AI call failed:", e.message); return null; }
+  };
+
+  // Build rich vehicle data string for AI context
+  const buildVehicleContext = (v) => {
+    const dl = D.find(d => d.id === v.dealerId) || D[0];
+    const fin = calcFin(v.price);
+    const motSummary = (v.mot || []).map(m => `${m.date}: ${m.result}${m.advisories?.length ? " — " + m.advisories.join("; ") : ""}`).join(" | ");
+    return [
+      `${v.year} ${v.make} ${v.model} ${v.variant}`,
+      `Price: ${fmt(v.price)} (${v.priceRating}) — Listed ${v.daysListed} days`,
+      `Mileage: ${fmtMi(v.mileage)} | Fuel: ${v.fuel} | Gearbox: ${v.transmission} | Body: ${v.bodyType}`,
+      `Engine: ${v.engineSize}, ${v.specs.bhp}bhp, ${v.specs.torque}, 0-62 in ${v.specs.acceleration}s`,
+      `Economy: ${v.specs.fuelEconomy}${typeof v.specs.fuelEconomy === "number" ? " mpg" : ""} | Boot: ${v.specs.bootSpace}L`,
+      v.specs.range ? `Range: ${v.specs.range} miles | Battery: ${v.specs.batteryCapacity}` : null,
+      `Colour: ${v.colour} | Doors: ${v.doors} | Reg: ${v.vrm}`,
+      `CO2: ${v.co2}g/km | Euro: ${v.euroEmissions} | ULEZ: ${v.ulezCompliant ? "Compliant" : "NOT compliant (£12.50/day)"}`,
+      `Insurance Group: ${v.insuranceGroup}/50 | Tax: ${v.taxCost === 0 ? "FREE" : "£" + v.taxCost + "/yr"}`,
+      `HPI: ${v.hpiClear ? "Clear" : "Pending"} | Service History: ${v.serviceHistory ? "Full" : "Partial"} | Previous Keepers: ${v.previousKeepers}`,
+      `MOT Expires: ${v.motExpiry} | History: ${motSummary || "Clean"}`,
+      `Features: ${v.features.join(", ")}`,
+      `Location: ${v.location} | Match Score: ${v.matchScore}%`,
+      `Finance: PCP ~£${fin.monthly}/mo (${fin.apr}% APR, ${fmt(finDep)} dep, ${finTerm}mo) | HP ~£${Math.round(fin.monthly * 1.15)}/mo | Balloon: ${fmt(fin.balloon)}`,
+      `Dealer: ${dl.name} (${dl.location}) | Rating: ${dl.rating}★ (${dl.reviews} reviews) | Response: ${dl.responseTime} | Trust: ${dl.trustScore}/100`,
+    ].filter(Boolean).join("\n");
+  };
+
+  // Build full inventory summary for main chat
+  const buildInventoryContext = () => {
+    return V.map(v => {
+      const fin = calcFin(v.price);
+      return `• ${v.year} ${v.make} ${v.model} ${v.variant} — ${fmt(v.price)} (${v.priceRating}), ${fmtMi(v.mileage)}, ${v.fuel}, ${v.transmission}, ${v.bodyType}, ${v.colour}, ${v.engineSize} ${v.specs.bhp}bhp, 0-62 ${v.specs.acceleration}s, ${v.specs.fuelEconomy}${typeof v.specs.fuelEconomy === "number" ? "mpg" : ""}, boot ${v.specs.bootSpace}L, insurance grp ${v.insuranceGroup}, tax £${v.taxCost}/yr, ULEZ ${v.ulezCompliant ? "yes" : "no"}, ${v.features.slice(0, 3).join(", ")}, ${v.location}, PCP ~£${fin.monthly}/mo, match ${v.matchScore}%${v.specs.range ? ", range " + v.specs.range + "mi" : ""}`;
+    }).join("\n");
+  };
+
+  // System prompts for each chat type
+  const SYSTEM_PROMPTS = {
+    main: `You are CarGPT, the UK's AI-powered car buying assistant. You are warm, knowledgeable, conversational, and genuinely helpful — like a trusted mate who happens to be a car expert.
+
+PERSONALITY & TONE:
+- Friendly, natural British English. Say "mate", "brilliant", "sorted" etc naturally.
+- Be conversational — respond like a real person, not a database. Use 2-5 sentences typically.
+- Give honest opinions. If a car is overpriced, say so. If it's a great deal, be enthusiastic.
+- Proactively suggest things the user hasn't thought of (insurance costs, ULEZ, running costs).
+- When recommending cars, explain WHY each one fits, not just list specs.
+- If the user's budget or needs don't match any stock, say so honestly and suggest what to look for.
+- Never invent cars or prices — only reference vehicles from the inventory below.
+
+CAPABILITIES YOU SHOULD MENTION NATURALLY:
+- You can check any car's MOT history, HPI status, insurance group, ULEZ compliance
+- You can calculate finance (PCP/HP/PCH), compare cars side-by-side, check deal quality
+- You can help with valuations, part-exchange, and negotiation strategies
+- You have tools for journey costs, fuel prices, company car tax, and more
+
+CURRENT INVENTORY (${V.length} vehicles, all London area):
+`,
+    vehicle: `You are CarGPT, a friendly and knowledgeable UK car expert. The user is looking at a specific vehicle and wants your honest advice.
+
+PERSONALITY:
+- Be like a trusted mechanic friend — honest, knowledgeable, conversational.
+- Give real opinions, not corporate waffle. If something is a concern, flag it.
+- Use actual data from the car to back up your answers.
+- Keep responses focused and helpful — 2-5 sentences unless the user asks for detail.
+- Proactively mention things that matter: insurance costs for young drivers, ULEZ charges, MOT advisories, depreciation risks, etc.
+- Compare to alternatives in stock when helpful.
+
+THE VEHICLE THE USER IS VIEWING:
+`,
+    dealer: `You are the AI sales assistant for {DEALER_NAME}, a professional UK car dealership at {DEALER_LOCATION}, rated {DEALER_RATING}★ with {DEALER_REVIEWS} reviews.
+
+PERSONALITY:
+- Professional but warm and personable — not pushy or slimy.
+- You represent the dealership, so be helpful and want to close the sale, but honestly.
+- Answer questions about the specific vehicle accurately using the data provided.
+- For test drive bookings, you have slots: Mon 10am, Tue 2pm, Wed 11am, Thu 3:30pm, Sat 10am.
+- For finance, quote the PCP/HP figures from the data. Offer to run a soft credit check.
+- For part-exchange, ask for their reg and mileage to give a quick valuation.
+- For availability, the car IS in stock and available for viewing.
+- If asked about discounts: the price is competitive but you can discuss over a cuppa at a viewing.
+- Confirm bookings enthusiastically. Remind them to bring their driving licence.
+
+THE VEHICLE:
+`
   };
 
   const smartReply = (q, ctx) => {
     const t = (q||"").toLowerCase(), v = ctx?.vehicle;
     if(v){
       const f=calcFin(v.price);
-      if(/hpi|stolen|write.?off/i.test(t))return v.hpiClear?`Yes, fully HPI clear — no outstanding finance, not stolen, no write-off. ${v.previousKeepers} keeper${v.previousKeepers>1?"s":""}, ${v.serviceHistory?"full service history":"partial history"}.`:`HPI check pending.`;
-      if(/mot|advisory/i.test(t))return `MOT runs until ${v.motExpiry}. ${v.mot?.[0]?.advisories?.length?`Last test had advisory: ${v.mot[0].advisories[0]}`:"Recent tests all clean."}`;
-      if(/insurance.*(group|cost)/i.test(t))return `Insurance group ${v.insuranceGroup}/50. ${v.insuranceGroup<=15?"Really low.":v.insuranceGroup<=25?"Mid-range.":"Higher side — get quotes."}`;
-      if(/good.?deal|worth|value/i.test(t))return `At ${fmt(v.price)} with ${fmtMi(v.mileage)}, rated "${v.priceRating}". ${v.priceRating==="Great Deal"?"Move quickly.":"Room to negotiate."}`;
-      if(/running|fuel|economy|mpg/i.test(t))return v.fuel==="Electric"?`Zero tax, ULEZ exempt, ~5-7p/mile.`:`${v.specs.fuelEconomy} mpg, £${v.taxCost}/yr tax, group ${v.insuranceGroup}.`;
-      if(/finance|monthly|pcp/i.test(t))return `PCP: ~£${f.monthly}/mo with £${Math.round(v.price*0.1).toLocaleString()} deposit. HP: ~£${Math.round(f.monthly*1.15)}/mo.`;
-      if(/spec|feature/i.test(t))return `${v.features.join(", ")}. ${v.specs.bhp}bhp, 0-62 in ${v.specs.acceleration}s.`;
-      return `${v.year} ${v.make} ${v.model}: ${fmt(v.price)}, ${fmtMi(v.mileage)}, ${v.priceRating}. What else?`;
+      if(/hpi|stolen|write.?off|clear/i.test(t))return v.hpiClear?`Good news — this ${v.make} ${v.model} is fully HPI clear. No outstanding finance, not stolen, no insurance write-off. It's had ${v.previousKeepers} previous keeper${v.previousKeepers>1?"s":""} and comes with ${v.serviceHistory?"full service history":"partial service history"}. You can run our premium check for the full 10-point report.`:`The HPI check is still pending on this one. I'd recommend waiting for the full report before committing.`;
+      if(/mot|advisory|test/i.test(t)){const lastMot=v.mot?.[0];return `MOT is valid until ${v.motExpiry}. ${lastMot?`Last test on ${lastMot.date} was a ${lastMot.result}${lastMot.advisories?.length?". Advisory noted: "+lastMot.advisories.join(", ")+". Nothing to worry about but worth keeping an eye on":". Clean pass, no advisories — that's great"}.`:"No issues flagged."} ${v.mot?.some(m=>m.result==="Fail")?"There was a previous fail in the history — it was fixed and has passed since.":""}`;}
+      if(/insurance|insur/i.test(t))return `Insurance group ${v.insuranceGroup} out of 50. ${v.insuranceGroup<=12?"That's really low — great for younger drivers or if you want to keep costs down.":v.insuranceGroup<=20?"Mid-range, pretty reasonable for a ${v.make} ${v.model}.":v.insuranceGroup<=30?"On the higher side — budget around £${Math.round(800+v.insuranceGroup*25)}-£${Math.round(1200+v.insuranceGroup*30)}/yr depending on your profile.":"That's quite high — you'll want to get quotes from comparison sites. Consider black box insurance if you're under 25."}`;
+      if(/good.?deal|worth|value|overpriced|fair/i.test(t))return `At ${fmt(v.price)} with ${fmtMi(v.mileage)}, this is rated "${v.priceRating}". ${v.priceRating==="Great Deal"?"Honestly, this is priced below market — I'd move quickly if you're interested. It's been listed "+v.daysListed+" days and won't last.":v.priceRating==="Good Deal"?"Solid pricing for the spec and mileage. Listed "+v.daysListed+" days."+( v.daysListed>21?" That's been around a while — there could be room to negotiate.":""):"Fair price but there might be room to negotiate, especially if you're paying cash or have a part-exchange."}`;
+      if(/running|fuel|economy|mpg|cost.*run|cheap.*run/i.test(t))return v.fuel==="Electric"?`Running costs are where EVs really shine. Zero road tax, ULEZ exempt, and charging costs around 5-7p per mile (vs 15-18p for petrol). Servicing is cheaper too — fewer moving parts. The main cost is depreciation, but the ${v.make} ${v.model} holds value well.`:`Real-world economy should be around ${v.specs.fuelEconomy} mpg. Road tax is ${v.taxCost===0?"free":"£"+v.taxCost+"/yr"}, insurance group ${v.insuranceGroup}. ${v.ulezCompliant?"ULEZ compliant so no daily charge in London.":"⚠️ Not ULEZ compliant — that's £12.50/day in London."} All in, budget roughly £${Math.round(150+v.taxCost/12+v.insuranceGroup*4)}-£${Math.round(250+v.taxCost/12+v.insuranceGroup*6)}/month for fuel, tax, and insurance.`;
+      if(/finance|monthly|pcp|hp |hire|lease|afford/i.test(t))return `Here are your finance options on this ${v.make} ${v.model} at ${fmt(v.price)}:\n\n• PCP: ~£${f.monthly}/mo (${f.apr}% APR, ${fmt(finDep)} deposit, ${finTerm} months, ${fmt(f.balloon)} balloon)\n• HP: ~£${Math.round(f.monthly*1.15)}/mo (own it outright at the end)\n• PCH Lease: ~£${Math.round(v.price*0.015)}/mo (never own it, just hand back)\n\nPCP is most popular — lower monthlies but you don't own it until you pay the balloon. HP costs more monthly but it's yours at the end. Want me to adjust the deposit or term?`;
+      if(/spec|feature|what.*got|equipment|kit/i.test(t))return `This ${v.make} ${v.model} comes with: ${v.features.join(", ")}. Under the bonnet it's ${v.specs.bhp}bhp with ${v.specs.torque} torque, doing 0-62 in ${v.specs.acceleration}s. ${v.specs.bootSpace}L boot${v.bodyType==="SUV"?" — plenty of space for the family":""}. ${v.fuel==="Electric"?`Battery is ${v.specs.batteryCapacity} giving ${v.specs.range} miles range.`:""}`;
+      if(/tax|ved|road.?tax/i.test(t))return v.taxCost===0?`Road tax is completely free on this one! ${v.fuel==="Electric"?"All EVs are zero-rated for VED.":"Hybrid with CO2 under 100g/km gets the free rate."}`:`Road tax is £${v.taxCost}/yr (${v.co2}g/km CO2). ${v.co2>150?"That's above average — worth factoring into your budget.":"Pretty standard for a "+v.fuel.toLowerCase()+" car this size."}`;
+      if(/ulez|emission|london|zone|clean/i.test(t))return v.ulezCompliant?`This ${v.make} ${v.model} is fully ULEZ compliant (${v.euroEmissions}). No daily charge in London's Ultra Low Emission Zone or any Clean Air Zone. ${v.co2===0?"Zero emissions — as clean as it gets!":""}`:`⚠️ This car is NOT ULEZ compliant. You'd pay £12.50 every day you drive in London's ULEZ zone. That's £3,125/year if you commute daily. Seriously consider an alternative if you drive in London regularly.`;
+      if(/mileage|miles|how far|high.?mile|low.?mile/i.test(t))return `${fmtMi(v.mileage)} on the clock. ${v.mileage<15000?"That's very low mileage — well below average for a "+v.year+". Could mean it was a second car or barely used.":v.mileage<25000?"Below average mileage for its age — that's good.":v.mileage<40000?"About average for a "+(2026-v.year)+"-year-old car (roughly 10K/year).":"Above average mileage, but "+v.make+"s handle it well."} ${v.serviceHistory?"Full service history backs it up.":"Partial service history — you might want to ask the dealer for more detail."}`;
+      if(/reliab|problem|issue|fault|common/i.test(t))return `The ${v.make} ${v.model} is generally ${v.make==="Toyota"||v.make==="Kia"?"very reliable — "+v.make+" consistently tops reliability surveys.":v.make==="BMW"||v.make==="Mercedes-Benz"?"well-built but can have higher repair costs when things do go wrong.":"a solid choice with good reliability."}${v.mot?.some(m=>m.advisories?.length)?" The MOT history shows minor advisories but nothing concerning.":""} With ${v.serviceHistory?"full":"partial"} service history and ${v.previousKeepers} previous keeper${v.previousKeepers>1?"s":""}, this example looks well cared for.`;
+      return `The ${v.year} ${v.make} ${v.model} ${v.variant} is at ${fmt(v.price)} with ${fmtMi(v.mileage)} — rated "${v.priceRating}". It's ${v.fuel.toLowerCase()}, ${v.transmission.toLowerCase()}, insurance group ${v.insuranceGroup}, and ${v.ulezCompliant?"ULEZ compliant":"not ULEZ compliant"}. What would you like to know more about?`;
     }
-    if(/family|suv/i.test(t))return `Kia Sportage (${fmt(31995)}, 591L boot, 7yr warranty) or Focus (${fmt(13495)}) as budget option.`;
-    if(/first.?car|new.?driver/i.test(t))return `Toyota Yaris Hybrid (group 10, ${fmt(16995)}) — cheap to insure and run.`;
-    if(/electric|ev|tesla/i.test(t))return `Tesla Model 3 (${fmt(29995)}, 374mi range). Zero tax, ULEZ exempt.`;
-    if(/cheap|budget|under.*15/i.test(t))return `Ford Focus ST-Line at ${fmt(13495)} — sporty, efficient, low insurance group 14.`;
-    if(/bmw|audi|merc|premium/i.test(t))return `BMW 320d (${fmt(22495)}, "Great Deal"), Audi A3 (${fmt(21995)}), Merc A200 (${fmt(23495)}).`;
-    if(/hi|hello|hey/i.test(t))return `Hey! 👋 I'm CarGPT. Search, compare, finance, MOT checks — what are you after?`;
-    return `I've got 8 cars from ${fmt(13495)} to ${fmt(31995)}. What's your budget or lifestyle?`;
+    if(/family|suv|kids|child|space|boot/i.test(t))return `For families, I'd look at the Kia Sportage (${fmt(31995)}) — 591L boot, 7-year warranty, brilliant spec with panoramic roof and 360° camera. Or if budget is tighter, the Ford Focus ST-Line (${fmt(13495)}) has decent space and great tech. The Toyota Yaris is good on running costs but the boot's only 286L — might be tight with a pushchair.`;
+    if(/first.?car|new.?driver|just.?passed|young/i.test(t))return `For a new driver, insurance is the big one. The Toyota Yaris Hybrid (${fmt(16995)}, group 10) is your best bet — cheap insurance, brilliant fuel economy (68.9mpg), and Toyota reliability. The Ford Focus (${fmt(13495)}, group 14) is also decent. Stay under group 15 to keep premiums manageable. Consider a black box policy too — saves 20-40%.`;
+    if(/electric|ev|tesla|zero.?emission|charge/i.test(t))return `The Tesla Model 3 Long Range (${fmt(29995)}) is our EV pick — 374 miles range, 0-62 in 4.4s, zero road tax, ULEZ exempt. Running costs are roughly 5-7p/mile vs 15-18p for petrol. The Autopilot and 15" touchscreen are brilliant. We also have two hybrids if you're not ready to go fully electric — the Yaris Hybrid and Kia Sportage HEV.`;
+    if(/cheap|budget|under.*15|affordable|bargain/i.test(t))return `Best value in stock is the Ford Focus ST-Line at ${fmt(13495)} — sporty looks, B&O audio, 125bhp, group 14 insurance. It's been listed ${V[3].daysListed} days so there might be negotiation room. Next up is the Toyota Yaris Hybrid at ${fmt(16995)} with the lowest running costs of anything we have. What's your absolute max budget?`;
+    if(/bmw|audi|merc|premium|luxury|posh/i.test(t))return `Three premium options for you: The BMW 320d M Sport (${fmt(22495)}) is rated "Great Deal" — 190bhp, leather, Harman Kardon. The Audi A3 S Line (${fmt(21995)}) has the Virtual Cockpit and that premium Audi interior. The Mercedes A200 AMG Line (${fmt(23495)}) has MBUX, ambient lighting, and the widescreen cockpit. All three are ULEZ compliant with strong specs. The BMW is the best value right now.`;
+    if(/compare|vs|or|between|which/i.test(t))return `Happy to compare any of our cars! Just tell me the two you're considering and I'll break down the differences — price, running costs, specs, the lot. Or tell me what matters most to you (budget, space, performance, insurance) and I'll recommend the best match.`;
+    if(/hi|hello|hey|morning|afternoon|hiya/i.test(t))return `Hey! 👋 Welcome to CarGPT. I've got ${V.length} brilliant cars in stock across London, from ${fmt(13495)} to ${fmt(31995)}. I can search by budget, lifestyle, fuel type — or just tell me what you need and I'll find the perfect match. What are you after?`;
+    if(/thanks|thank|cheers|ta /i.test(t))return `No worries! 😊 Anything else you'd like to know? I can check finance, MOT history, insurance costs, or help you book a test drive on any car.`;
+    return `I've got ${V.length} cars in stock from ${fmt(13495)} to ${fmt(31995)} — hatchbacks, saloons, SUVs, petrol, diesel, electric, and hybrid. Tell me your budget, what you'll use it for, or what matters most to you, and I'll find the right match!`;
   };
 
   const sendChat = async (text) => {
@@ -701,35 +795,71 @@ export default function CarGPTDesktop() {
     const um={role:"user",text:text.trim()};
     setMsgs(p=>[...p,um]); setChatIn(""); setHeroIn(""); setTyping(true);
     if(!chatOpen) setChatOpen(true);
+
+    // Smart vehicle matching — show relevant car cards
     const lo=text.toLowerCase();
     let cars=null;
-    if(/family|suv/i.test(lo))cars=V.filter(v=>v.bodyType==="SUV"||v.specs.bootSpace>400);
-    else if(/electric|ev/i.test(lo))cars=V.filter(v=>v.fuel==="Electric");
-    else if(/cheap|budget|under.*15/i.test(lo))cars=[...V].sort((a,b)=>a.price-b.price).slice(0,4);
-    else if(/bmw|audi|merc|premium/i.test(lo))cars=V.filter(v=>["BMW","Audi","Mercedes-Benz"].includes(v.make));
-    else if(/hybrid/i.test(lo))cars=V.filter(v=>v.fuel==="Hybrid");
-    else if(/show|find|search|recommend/i.test(lo))cars=V.filter(v=>v.matchScore>=85).slice(0,4);
-    const inv=V.map(v=>`${v.year} ${v.make} ${v.model} ${v.variant}|${fmt(v.price)}|${fmtMi(v.mileage)}|${v.fuel}|${v.priceRating}`).join("\n");
-    const hist=[...msgs.slice(-6),um].map(m=>({role:m.role==="assistant"?"assistant":"user",content:m.text}));
+    if(/family|suv|kids|child|space|boot|pushchair/i.test(lo)) cars=V.filter(v=>v.bodyType==="SUV"||v.specs.bootSpace>400);
+    else if(/electric|ev|zero.?emission|charge|tesla/i.test(lo)) cars=V.filter(v=>v.fuel==="Electric");
+    else if(/hybrid|eco/i.test(lo)) cars=V.filter(v=>v.fuel==="Hybrid");
+    else if(/cheap|budget|under.*15|afford|bargain/i.test(lo)) cars=[...V].sort((a,b)=>a.price-b.price).slice(0,4);
+    else if(/under.*20/i.test(lo)) cars=V.filter(v=>v.price<20000);
+    else if(/under.*25/i.test(lo)) cars=V.filter(v=>v.price<25000);
+    else if(/under.*30/i.test(lo)) cars=V.filter(v=>v.price<30000);
+    else if(/bmw|audi|merc|premium|luxury|posh/i.test(lo)) cars=V.filter(v=>["BMW","Audi","Mercedes-Benz"].includes(v.make));
+    else if(/petrol/i.test(lo)) cars=V.filter(v=>v.fuel==="Petrol");
+    else if(/diesel/i.test(lo)) cars=V.filter(v=>v.fuel==="Diesel");
+    else if(/auto|automatic/i.test(lo)) cars=V.filter(v=>v.transmission!=="Manual");
+    else if(/manual|stick/i.test(lo)) cars=V.filter(v=>v.transmission==="Manual");
+    else if(/hatchback|hatch/i.test(lo)) cars=V.filter(v=>v.bodyType==="Hatchback");
+    else if(/saloon|sedan/i.test(lo)) cars=V.filter(v=>v.bodyType==="Saloon");
+    else if(/first.?car|new.?driver|young|insurance.*low|low.*insurance/i.test(lo)) cars=[...V].sort((a,b)=>a.insuranceGroup-b.insuranceGroup).slice(0,4);
+    else if(/show|find|search|recommend|what.*got|browse|all/i.test(lo)) cars=[...V].sort((a,b)=>b.matchScore-a.matchScore).slice(0,4);
+    // Match specific makes/models mentioned
+    else { const makeMatch = V.filter(v => lo.includes(v.make.toLowerCase()) || lo.includes(v.model.toLowerCase())); if(makeMatch.length) cars=makeMatch; }
+
+    // Build AI messages with rich context
+    const fullPrompt = SYSTEM_PROMPTS.main + buildInventoryContext();
+    const hist=[...msgs.slice(-8),um].map(m=>({role:m.role==="assistant"?"assistant":"user",content:m.text}));
     const merged=[];for(const m of hist){if(merged.length>0&&merged[merged.length-1].role===m.role)merged[merged.length-1].content+="\n"+m.content;else merged.push({...m});}
     while(merged.length>0&&merged[0].role!=="user")merged.shift();
-    if(merged.length>0)merged[0].content=`You are CarGPT, a warm UK car buying AI. Be concise (2-4 sentences), natural. UK terminology.\n\nINVENTORY:\n${inv}\n\nMention specific cars when relevant.\n\n---\nUser: ${merged[0].content}`;
-    try{const r=await callAI(merged);const msg={role:"assistant",text:r||smartReply(text,{})};if(cars?.length)msg.vehicles=cars.slice(0,4);setMsgs(p=>[...p,msg]);}
-    catch(e){const msg={role:"assistant",text:smartReply(text,{})};if(cars?.length)msg.vehicles=cars.slice(0,4);setMsgs(p=>[...p,msg]);}
+    if(merged.length>0) merged[0].content = fullPrompt + "\n\n---\nUser: " + merged[0].content;
+
+    try {
+      const r = await callAI(merged);
+      const msg = {role:"assistant", text: r || smartReply(text,{})};
+      if(cars?.length) msg.vehicles = cars.slice(0,4);
+      setMsgs(p=>[...p,msg]);
+    } catch(e) {
+      const msg = {role:"assistant", text: smartReply(text,{})};
+      if(cars?.length) msg.vehicles = cars.slice(0,4);
+      setMsgs(p=>[...p,msg]);
+    }
     setTyping(false);
   };
 
   const sendVMsg = async (text) => {
     if(!text?.trim()||!sel)return;
-    const v=sel,dl=D.find(d=>d.id===v.dealerId)||D[0],fin=calcFin(v.price);
+    const v=sel;
     setVMsgs(p=>[...p,{role:"user",text:text.trim()}]); setVIn(""); setVTyping(true);
+
+    // Build rich vehicle context
+    const vehicleContext = buildVehicleContext(v);
+    const altCars = V.filter(x=>x.id!==v.id).slice(0,3).map(a=>`  - ${a.year} ${a.make} ${a.model}: ${fmt(a.price)}, ${fmtMi(a.mileage)}, ${a.fuel}, grp ${a.insuranceGroup}`).join("\n");
+    const fullPrompt = SYSTEM_PROMPTS.vehicle + vehicleContext + "\n\nALTERNATIVES IN STOCK (mention if relevant):\n" + altCars;
+
     const hist=[...vMsgs,{role:"user",text}].map(m=>({role:m.role==="assistant"?"assistant":"user",content:m.text}));
     const merged=[];for(const m of hist){if(merged.length>0&&merged[merged.length-1].role===m.role)merged[merged.length-1].content+="\n"+m.content;else merged.push({...m});}
     while(merged.length>0&&merged[0].role!=="user")merged.shift();
     if(!merged.length)merged.push({role:"user",content:text});
-    merged[0].content=`You are CarGPT, friendly UK car expert. THE CAR: ${v.year} ${v.make} ${v.model} ${v.variant} — ${fmt(v.price)} (${v.priceRating}), ${fmtMi(v.mileage)}, ${v.fuel}. HPI:${v.hpiClear?"Clear":"Pending"}, Service:${v.serviceHistory?"Full":"Partial"}, MOT:${v.motExpiry}, Keepers:${v.previousKeepers}. Insurance:${v.insuranceGroup}, Tax:£${v.taxCost}/yr, ULEZ:${v.ulezCompliant?"Yes":"No"}. ${v.specs.bhp}bhp, 0-62 ${v.specs.acceleration}s, ${v.specs.fuelEconomy}mpg, ${v.specs.bootSpace}L boot. PCP £${fin.monthly}/mo. Be concise, 2-4 sentences.\n---\nUser: ${merged[0].content}`;
-    try{const r=await callAI(merged);setVMsgs(p=>[...p,{role:"assistant",text:r||smartReply(text,{vehicle:v})}]);}
-    catch(e){setVMsgs(p=>[...p,{role:"assistant",text:smartReply(text,{vehicle:v})}]);}
+    merged[0].content = fullPrompt + "\n\n---\nUser: " + merged[0].content;
+
+    try {
+      const r = await callAI(merged);
+      setVMsgs(p=>[...p,{role:"assistant",text:r||smartReply(text,{vehicle:v})}]);
+    } catch(e) {
+      setVMsgs(p=>[...p,{role:"assistant",text:smartReply(text,{vehicle:v})}]);
+    }
     setVTyping(false);
   };
 
@@ -746,20 +876,44 @@ export default function CarGPTDesktop() {
     const ctx=dCtx, v=ctx?.vehicle||V[0], dl=ctx?.dealer||D[0];
     setDMsgs(p=>[...p,{role:"user",text:text.trim()}]); setDIn(""); setDTyping(true);
     const fin=calcFin(v.price);
+
+    // Fallback responses
     const fb=()=>{const dq=text.toLowerCase();
-      if(/mon|tue|wed|thu|fri|sat|10am|2pm|11am|3:30/i.test(dq))return `Perfect! ✅ Booked for ${text} at our ${dl.location} showroom. Bring your driving licence. See you then!`;
-      if(/available|in.?stock/i.test(dq))return `Yes, the ${v.make} ${v.model} is available at ${dl.location}! Want to book a viewing?`;
-      if(/test.?drive|view|book/i.test(dq))return `I've got Mon 10am, Tue 2pm, Wed 11am, Thu 3:30pm available. Which works?`;
-      if(/finance|monthly|pcp/i.test(dq))return `PCP: ~£${fin.monthly}/mo (${fmt(Math.round(v.price*0.1))} dep). HP: ~£${Math.round(fin.monthly*1.15)}/mo.`;
-      if(/part.?ex|trade/i.test(dq))return `Happy to help! Share your reg and mileage for a quick valuation.`;
-      if(/price|discount|offer/i.test(dq))return `${fmt(v.price)} is ${v.priceRating.includes("Great")?"our best price":"competitively priced"}. Cash, finance, or part-ex?`;
-      return `The ${v.make} ${v.model} is ${v.priceRating} at ${fmt(v.price)}. Book a test drive or discuss finance?`;};
+      if(/mon|tue|wed|thu|fri|sat|10am|2pm|11am|3:30/i.test(dq))return `Perfect! ✅ Booked you in for ${text} at our ${dl.location} showroom. Just bring your driving licence and we'll have the ${v.make} ${v.model} ready for you. Looking forward to meeting you!`;
+      if(/available|in.?stock|still.?got/i.test(dq))return `Yes! The ${v.year} ${v.make} ${v.model} is here at our ${dl.location} showroom, ready to view or test drive. Would you like to book a slot? I've got availability this week.`;
+      if(/test.?drive|view|book|come.?see/i.test(dq))return `Brilliant — I've got Mon 10am, Tue 2pm, Wed 11am, Thu 3:30pm, or Sat 10am available. Which works best for you? Takes about 30 minutes and there's no obligation.`;
+      if(/finance|monthly|pcp|hp|afford/i.test(dq))return `Great question! On PCP, you're looking at around £${fin.monthly}/mo with a ${fmt(Math.round(v.price*0.1))} deposit over ${finTerm} months. HP would be ~£${Math.round(fin.monthly*1.15)}/mo but you own it outright at the end. We work with multiple lenders so we can usually find the best rate for your circumstances. Want me to run a soft credit check? It won't affect your score.`;
+      if(/part.?ex|trade|my.?car|swap/i.test(dq))return `Happy to help with a part-exchange! If you send me your reg number and current mileage, I can get you a valuation within the hour. We aim to beat any online valuation you've had — We Buy Any Car, Motorway, etc.`;
+      if(/price|discount|offer|deal|negotiate|best.?price/i.test(dq))return `The ${v.make} ${v.model} at ${fmt(v.price)} is competitively priced — it's rated "${v.priceRating}" against the market. Rather than just knocking money off, why not come in for a viewing? We can discuss the full package — finance, part-exchange, extras — and I'm sure we can put something together that works for you.`;
+      if(/warranty|guarantee|cover/i.test(dq))return `The ${v.make} ${v.model} comes with our standard 3-month warranty included. We also offer 6-month and 12-month extended warranties if you want extra peace of mind. ${v.make==="Kia"?"Plus Kia's 7-year manufacturer warranty still has time remaining on this one — that's exceptional cover.":""}`;
+      if(/deliver|collect|bring/i.test(dq))return `We offer both! You're welcome to collect from our ${dl.location} showroom, or we can deliver within a 50-mile radius for a small fee. Nationwide delivery is also available — we'll quote based on distance.`;
+      return `The ${v.year} ${v.make} ${v.model} is a ${v.priceRating.toLowerCase()} at ${fmt(v.price)} with ${fmtMi(v.mileage)}. Would you like to book a test drive, discuss finance, or get a part-exchange valuation? I'm here to help.`;
+    };
+
+    // Build dealer-persona prompt with full vehicle data
+    const vehicleContext = buildVehicleContext(v);
+    const dealerPrompt = SYSTEM_PROMPTS.dealer
+      .replace("{DEALER_NAME}", dl.name)
+      .replace("{DEALER_LOCATION}", dl.location)
+      .replace("{DEALER_RATING}", dl.rating)
+      .replace("{DEALER_REVIEWS}", dl.reviews);
+
     const hist=[...dMsgs,{role:"user",text}].map(m=>({role:m.role==="bot"?"assistant":"user",content:m.text})).filter(m=>m.content);
     const merged=[];for(const m of hist){if(merged.length>0&&merged[merged.length-1].role===m.role)merged[merged.length-1].content+="\n"+m.content;else merged.push({...m});}
     while(merged.length>0&&merged[0].role!=="user")merged.shift();
     if(!merged.length)merged.push({role:"user",content:text});
-    merged[0].content=`You are AI for ${dl.name} (${dl.location}, ${dl.rating}★). Vehicle: ${v.year} ${v.make} ${v.model}, ${fmt(v.price)} (${v.priceRating}), ${fmtMi(v.mileage)}, ${v.fuel}. PCP £${fin.monthly}/mo. Be concise, professional, warm. Confirm test drive bookings.\n---\nCustomer: ${merged[0].content}`;
-    try{const r=await callAI(merged);const resp={role:"bot",text:r||fb()};if(/test.?drive|slot|book/i.test(text.toLowerCase())&&!/mon|tue|wed|thu/i.test(text.toLowerCase()))resp.quickReplies=["Mon 10am","Tue 2pm","Wed 11am","Thu 3:30pm"];setDMsgs(p=>[...p,resp]);}catch(e){const resp={role:"bot",text:fb()};setDMsgs(p=>[...p,resp]);}
+    merged[0].content = dealerPrompt + vehicleContext + "\n\n---\nCustomer: " + merged[0].content;
+
+    try {
+      const r = await callAI(merged);
+      const resp = {role:"bot", text: r || fb()};
+      if(/test.?drive|slot|book|view/i.test(text.toLowerCase()) && !/mon|tue|wed|thu|sat/i.test(text.toLowerCase()))
+        resp.quickReplies = ["Mon 10am","Tue 2pm","Wed 11am","Thu 3:30pm","Sat 10am"];
+      setDMsgs(p=>[...p,resp]);
+    } catch(e) {
+      const resp = {role:"bot", text: fb()};
+      setDMsgs(p=>[...p,resp]);
+    }
     setDTyping(false);
   };
 
@@ -877,7 +1031,7 @@ export default function CarGPTDesktop() {
           <button className="ai-search-btn" onClick={()=>{sendChat(heroIn);setChatOpen(true);}}>Search with AI</button>
         </div>
         <div className="quick-actions">
-          {["Show me EVs","Family SUVs","Budget under £15k","Premium cars","Lowest insurance"].map(q =>
+          {["I need a family car","Show me EVs","Budget under £15k","What's the best deal?","I'm a new driver","Compare the premium cars"].map(q =>
             <button key={q} className="quick-action" onClick={()=>{sendChat(q);setChatOpen(true);}}>{q}</button>
           )}
         </div>
@@ -1122,7 +1276,7 @@ export default function CarGPTDesktop() {
             {detailTab==="ai" && <div>
               <div className="text-sm text-muted mb-3">Ask anything about this {v.make} {v.model}</div>
               <div className="flex gap-2 flex-wrap mb-4">
-                {["Is it HPI clear?","Good deal?","Running costs?","Finance options?","Insurance group?","MOT status?"].map((q,i) =>
+                {["Is this a good deal?","What are the running costs?","Any MOT issues?","How much is insurance?","Is it reliable?","What's the finance like?","Is it ULEZ compliant?","Should I negotiate?"].map((q,i) =>
                   <button key={i} className="quick-action" onClick={()=>sendVMsg(q)}>{q}</button>
                 )}
               </div>
