@@ -283,7 +283,6 @@ input, select, textarea { font-family:var(--font); }
   background:var(--surface); border-radius:var(--radius);
   border:1px solid var(--border); box-shadow:var(--shadow-xl);
   display:flex; flex-direction:column; overflow:hidden;
-  animation:slideUpChat 0.3s ease;
 }
 @keyframes slideUpChat { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
 .chat-header {
@@ -577,6 +576,21 @@ input, select, textarea { font-family:var(--font); }
 // ═══════════════════════════════════════════════════
 // MAIN APP COMPONENT
 // ═══════════════════════════════════════════════════
+// ═══ SlideOver Component (stable reference — outside main component) ═══
+const SlideOver = ({show, onClose, title, children}) => {
+  if(!show) return null;
+  return (<>
+    <div className="modal-backdrop" onClick={onClose}/>
+    <div className="slide-over">
+      <div className="slide-header">
+        <div className="slide-title">{title}</div>
+        <button className="slide-close" onClick={onClose}>✕</button>
+      </div>
+      <div className="slide-body">{children}</div>
+    </div>
+  </>);
+};
+
 export default function CarGPTDesktop() {
   // Navigation & Views
   const [page, setPage] = useState("home"); // home, search, favourites, garage, profile
@@ -946,20 +960,6 @@ THE VEHICLE:
   const closeModal = () => { setActiveModal(null); };
 
   // ═══ RENDER: SLIDE-OVER MODAL WRAPPER ═══
-  const SlideOver = ({show, onClose, title, children}) => {
-    if(!show) return null;
-    return (<>
-      <div className="modal-backdrop" onClick={onClose}/>
-      <div className="slide-over">
-        <div className="slide-header">
-          <div className="slide-title">{title}</div>
-          <button className="slide-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="slide-body">{children}</div>
-      </div>
-    </>);
-  };
-
   // ═══ RENDER: NAVBAR ═══
   const Navbar = () => (
     <nav className="navbar">
@@ -984,7 +984,7 @@ THE VEHICLE:
 
   // ═══ RENDER: VEHICLE CARD ═══
   const VCard = ({v}) => (
-    <div className="vcard" onClick={()=>setSel(v)}>
+    <div key={v.id} className="vcard" onClick={()=>setSel(v)}>
       <div className="vcard-img">
         {v.img}
         {v.matchScore >= 85 && <div className="vcard-match">{v.matchScore}% match</div>}
@@ -1027,12 +1027,12 @@ THE VEHICLE:
           <span className="ai-search-icon">✨</span>
           <input className="ai-search-input" placeholder="Try &quot;family SUV under £25k with low insurance&quot;..."
             value={heroIn} onChange={e=>setHeroIn(e.target.value)}
-            onKeyDown={e=>{if(e.key==="Enter"){sendChat(heroIn);setChatOpen(true);}}}/>
-          <button className="ai-search-btn" onClick={()=>{sendChat(heroIn);setChatOpen(true);}}>Search with AI</button>
+            onKeyDown={e=>{if(e.key==="Enter")sendChat(heroIn);}}/>
+          <button className="ai-search-btn" onClick={()=>sendChat(heroIn)}>Search with AI</button>
         </div>
         <div className="quick-actions">
           {["I need a family car","Show me EVs","Budget under £15k","What's the best deal?","I'm a new driver","Compare the premium cars"].map(q =>
-            <button key={q} className="quick-action" onClick={()=>{sendChat(q);setChatOpen(true);}}>{q}</button>
+            <button key={q} className="quick-action" onClick={()=>sendChat(q)}>{q}</button>
           )}
         </div>
       </div>
@@ -1076,7 +1076,7 @@ THE VEHICLE:
           <button className="section-link" onClick={()=>{setPage("search");setSel(null);}}>Browse all →</button>
         </div>
         <div className="vehicle-grid">
-          {[...V].sort((a,b)=>b.matchScore-a.matchScore).slice(0,4).map(v => <VCard key={v.id} v={v}/>)}
+          {[...V].sort((a,b)=>b.matchScore-a.matchScore).slice(0,4).map(v => VCard({v}))}
         </div>
       </div>
 
@@ -1089,7 +1089,7 @@ THE VEHICLE:
           </div>
         </div>
         <div className="vehicle-grid">
-          {[...V].sort((a,b)=>a.daysListed-b.daysListed).slice(0,4).map(v => <VCard key={v.id} v={v}/>)}
+          {[...V].sort((a,b)=>a.daysListed-b.daysListed).slice(0,4).map(v => VCard({v}))}
         </div>
       </div>
     </>
@@ -1115,7 +1115,7 @@ THE VEHICLE:
           <button key={b} className={`filter-chip ${fBody===b?"active":""}`} onClick={()=>setFBody(b)}>{b}</button>
         )}
       </div>
-      <div className="vehicle-grid">{filtered.map(v => <VCard key={v.id} v={v}/>)}</div>
+      <div className="vehicle-grid">{filtered.map(v => VCard({v}))}</div>
     </div>
   );
 
@@ -1126,7 +1126,7 @@ THE VEHICLE:
         <div className="section-title">❤️ Saved Cars ({favs.length})</div>
       </div>
       {favs.length>0 ?
-        <div className="vehicle-grid">{V.filter(v=>favs.includes(v.id)).map(v => <VCard key={v.id} v={v}/>)}</div> :
+        <div className="vehicle-grid">{V.filter(v=>favs.includes(v.id)).map(v => VCard({v}))}</div> :
         <div className="card text-center" style={{padding:60}}>
           <div style={{fontSize:48,marginBottom:12}}>🤍</div>
           <div className="text-md font-bold mb-2">No saved cars yet</div>
@@ -1346,40 +1346,7 @@ THE VEHICLE:
   };
 
   // ═══ RENDER: AI CHAT PANEL ═══
-  const ChatPanel = () => (
-    <div className="chat-panel">
-      <div className="chat-header">
-        <div className="chat-header-title"><span className="chat-header-dot"/> CarGPT AI</div>
-        <button className="chat-close" onClick={()=>setChatOpen(false)}>✕</button>
-      </div>
-      <div className="chat-messages">
-        {msgs.map((m,i) => (
-          <div key={i} className={`chat-msg ${m.role==="user"?"user":""}`}>
-            <div className="chat-bubble">{m.text}</div>
-            {m.vehicles && <div className="chat-cars">{m.vehicles.map(v =>
-              <div key={v.id} className="chat-car-card" onClick={()=>{setSel(v);setChatOpen(false);}}>
-                <div style={{fontSize:24,marginBottom:4}}>{v.img}</div>
-                <div className="text-xs font-bold">{v.year} {v.make} {v.model}</div>
-                <div className="text-sm font-extra text-primary">{fmt(v.price)}</div>
-                <div className="text-xs text-muted">{fmtMi(v.mileage)} · {v.fuel}</div>
-              </div>
-            )}</div>}
-            {m.quickReplies && <div className="chat-quick-replies">{m.quickReplies.map((qr,j) =>
-              <button key={j} className="chat-qr" onClick={()=>sendChat(qr)}>{qr}</button>
-            )}</div>}
-          </div>
-        ))}
-        {typing && <div className="chat-msg fade-in"><div className="chat-bubble"><div className="typing-dots"><div className="typing-dot"/><div className="typing-dot"/><div className="typing-dot"/></div></div></div>}
-        <div ref={chatRef}/>
-      </div>
-      <div className="chat-input-area">
-        <input className="chat-input" placeholder="Ask CarGPT anything..."
-          value={chatIn} onChange={e=>setChatIn(e.target.value)}
-          onKeyDown={e=>{if(e.key==="Enter")sendChat(chatIn);}}/>
-        <button className="chat-send" onClick={()=>sendChat(chatIn)}>↑</button>
-      </div>
-    </div>
-  );
+  // ChatPanel is inlined in the main return to avoid remounting
 
   // ═══ RENDER: TOOLS SIDEBAR ═══
   const ToolsSidebar = () => {
@@ -1689,7 +1656,7 @@ THE VEHICLE:
               <div className="label-sm" style={{margin:"8px 0 4px"}}>What To Do</div><div className="text-sm font-bold mb-2" style={{color:warningResult.severity==="Critical"?"var(--error)":"inherit"}}>{warningResult.action}</div>
               <div className="label-sm" style={{margin:"8px 0 4px"}}>Estimated Cost</div><div className="text-sm font-bold text-primary">{warningResult.cost}</div>
             </div>
-            <button className="btn btn-primary btn-block" onClick={()=>{closeModal();sendChat(`My ${GARAGE[0].make} ${GARAGE[0].model} ${warningResult.name} warning light is on. What should I do?`);setChatOpen(true);}}>🤖 Ask AI for Help</button>
+            <button className="btn btn-primary btn-block" onClick={()=>{closeModal();sendChat(`My ${GARAGE[0].make} ${GARAGE[0].model} ${warningResult.name} warning light is on. What should I do?`);}}>🤖 Ask AI for Help</button>
           </div> : <>
             <div className="text-sm text-muted mb-3">Identify any dashboard warning light</div>
             {WARNING_LIGHTS.map((w,i)=><div key={i} className="card card-clickable mb-2" onClick={()=>setWarningResult(w)}><div className="flex justify-between items-center"><div className="flex gap-3 items-center"><span style={{fontSize:20}}>{w.icon}</span><div><div className="text-sm font-bold">{w.name}</div><div className="text-xs text-muted">{w.action.substring(0,40)}...</div></div></div><span className={`badge ${w.severity==="Critical"?"badge-red":"badge-yellow"}`}>{w.severity}</span></div></div>)}
@@ -1717,10 +1684,10 @@ THE VEHICLE:
             )}
           </> : <div>
             <button className="btn btn-secondary btn-sm mb-3" onClick={()=>setFineType(null)}>← Back</button>
-            {fineType==="pcn"&&<><div className="text-md font-bold mb-3">🅿️ Parking Fine Appeal</div><div className="card mb-3"><div className="text-sm font-bold mb-2">Common winning grounds:</div>{["Signage not clearly visible","Pay & display machine faulty","Loading/unloading within time","Grace period not given (10 min rule)","PCN not issued correctly"].map((g,i)=><div key={i} className="flex gap-2 items-center" style={{padding:"4px 0"}}><span className="text-xs">✅</span><span className="text-xs">{g}</span></div>)}</div><button className="btn btn-primary btn-block" onClick={()=>{closeModal();sendChat("I received a parking fine and want to appeal. Can you help?");setChatOpen(true);}}>🤖 Start AI Appeal</button></>}
+            {fineType==="pcn"&&<><div className="text-md font-bold mb-3">🅿️ Parking Fine Appeal</div><div className="card mb-3"><div className="text-sm font-bold mb-2">Common winning grounds:</div>{["Signage not clearly visible","Pay & display machine faulty","Loading/unloading within time","Grace period not given (10 min rule)","PCN not issued correctly"].map((g,i)=><div key={i} className="flex gap-2 items-center" style={{padding:"4px 0"}}><span className="text-xs">✅</span><span className="text-xs">{g}</span></div>)}</div><button className="btn btn-primary btn-block" onClick={()=>{closeModal();sendChat("I received a parking fine and want to appeal. Can you help?");}}>🤖 Start AI Appeal</button></>}
             {fineType==="speed"&&<><div className="text-md font-bold mb-3">📸 Speeding Ticket Advisor</div><div className="card mb-3">{[{s:"1-9mph over",p:"3 pts",f:"£100",c:"✅ Course eligible"},{s:"10-20mph over",p:"3-6 pts",f:"£100-£500",c:"❌ No course"},{s:"21-30mph over",p:"4-6 pts",f:"£500+",c:"❌ No course"},{s:"30+ over",p:"6 pts",f:"£1,000+",c:"❌ Ban likely"}].map((b,i)=><div key={i} className="flex justify-between" style={{padding:"8px 0",borderBottom:i<3?"1px solid var(--border-light)":"none"}}><span className="text-xs">{b.s}</span><span className="text-xs">{b.p} · {b.f}</span><span className="text-xs">{b.c}</span></div>)}</div></>}
             {fineType==="points"&&<><div className="text-md font-bold mb-3">🔴 Points Tracker</div><div className="card mb-3 text-center" style={{background:"var(--primary-light)"}}><div className="text-xs text-muted">Your Points</div><div style={{fontSize:36,fontWeight:800,color:"var(--primary)"}}>3</div><div className="text-xs text-muted">of 12 (ban threshold)</div><div className="progress mt-2"><div className="progress-fill" style={{width:"25%",background:"var(--success)"}}/></div></div></>}
-            {fineType==="law"&&<><div className="text-md font-bold mb-3">⚖️ Motoring Law</div>{["Can I use my phone at a red light?","What's the drink drive limit?","Are dashcams legal?","Can I eat while driving?","Do I need to carry my licence?"].map((q,i)=><div key={i} className="card card-clickable mb-2" onClick={()=>{closeModal();sendChat(q);setChatOpen(true);}}><div className="text-sm">{q}</div></div>)}</>}
+            {fineType==="law"&&<><div className="text-md font-bold mb-3">⚖️ Motoring Law</div>{["Can I use my phone at a red light?","What's the drink drive limit?","Are dashcams legal?","Can I eat while driving?","Do I need to carry my licence?"].map((q,i)=><div key={i} className="card card-clickable mb-2" onClick={()=>{closeModal();sendChat(q);}}><div className="text-sm">{q}</div></div>)}</>}
           </div>}
         </SlideOver>;
 
@@ -1765,7 +1732,7 @@ THE VEHICLE:
             <div style={{fontSize:48,marginBottom:12}}>🔧</div>
             <div className="text-md font-bold mb-2">{titles[activeModal]}</div>
             <div className="text-sm text-muted mb-4">This tool is available in the full CarGPT app.</div>
-            <button className="btn btn-primary" onClick={()=>{closeModal();sendChat(`Tell me about ${titles[activeModal]?.replace(/[^\w\s]/g,"")}`);setChatOpen(true);}}>🤖 Ask AI Instead</button>
+            <button className="btn btn-primary" onClick={()=>{closeModal();sendChat(`Tell me about ${titles[activeModal]?.replace(/[^\w\s]/g,"")}`);}}>🤖 Ask AI Instead</button>
           </div>
         </SlideOver>;
 
@@ -1777,27 +1744,60 @@ THE VEHICLE:
   return (
     <>
       <style>{css}</style>
-      <Navbar/>
+      {Navbar()}
       <div className="app-layout">
         <div className="main-content">
-          {sel ? <DetailPage/> :
-            page==="home" ? <HomePage/> :
-            page==="search" ? <SearchPage/> :
-            page==="favourites" ? <FavouritesPage/> :
-            page==="garage" ? <GaragePage/> :
-            page==="profile" ? <ProfilePage/> : <HomePage/>
+          {sel ? DetailPage() :
+            page==="home" ? HomePage() :
+            page==="search" ? SearchPage() :
+            page==="favourites" ? FavouritesPage() :
+            page==="garage" ? GaragePage() :
+            page==="profile" ? ProfilePage() : HomePage()
           }
         </div>
       </div>
 
       {/* Tools Sidebar */}
-      <ToolsSidebar/>
+      {ToolsSidebar()}
 
       {/* Notification Panel */}
-      <NotifPanel/>
+      {NotifPanel()}
 
       {/* AI Chat */}
-      {chatOpen ? <ChatPanel/> :
+      {/* AI Chat — always mounted, toggled with display */}
+      <div className="chat-panel" style={{display:chatOpen?"flex":"none"}}>
+        <div className="chat-header">
+          <div className="chat-header-title"><span className="chat-header-dot"/> CarGPT AI</div>
+          <button className="chat-close" onClick={()=>setChatOpen(false)}>✕</button>
+        </div>
+        <div className="chat-messages">
+          {msgs.map((m,i) => (
+            <div key={i} className={`chat-msg ${m.role==="user"?"user":""}`}>
+              <div className="chat-bubble">{m.text}</div>
+              {m.vehicles && <div className="chat-cars">{m.vehicles.map(v =>
+                <div key={v.id} className="chat-car-card" onClick={()=>{setSel(v);setChatOpen(false);}}>
+                  <div style={{fontSize:24,marginBottom:4}}>{v.img}</div>
+                  <div className="text-xs font-bold">{v.year} {v.make} {v.model}</div>
+                  <div className="text-sm font-extra text-primary">{fmt(v.price)}</div>
+                  <div className="text-xs text-muted">{fmtMi(v.mileage)} · {v.fuel}</div>
+                </div>
+              )}</div>}
+              {m.quickReplies && <div className="chat-quick-replies">{m.quickReplies.map((qr,j) =>
+                <button key={j} className="chat-qr" onClick={()=>sendChat(qr)}>{qr}</button>
+              )}</div>}
+            </div>
+          ))}
+          {typing && <div className="chat-msg fade-in"><div className="chat-bubble"><div className="typing-dots"><div className="typing-dot"/><div className="typing-dot"/><div className="typing-dot"/></div></div></div>}
+          <div ref={chatRef}/>
+        </div>
+        <div className="chat-input-area">
+          <input className="chat-input" placeholder="Ask CarGPT anything..."
+            value={chatIn} onChange={e=>setChatIn(e.target.value)}
+            onKeyDown={e=>{if(e.key==="Enter")sendChat(chatIn);}}/>
+          <button className="chat-send" onClick={()=>sendChat(chatIn)}>↑</button>
+        </div>
+      </div>
+      {!chatOpen &&
         <button className="chat-fab" onClick={()=>setChatOpen(true)} title="Ask CarGPT AI">✨</button>
       }
 
