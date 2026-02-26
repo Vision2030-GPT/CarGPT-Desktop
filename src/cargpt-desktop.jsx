@@ -682,10 +682,10 @@ export default function CarGPTDesktop() {
 
   const callAI = async (messages, maxTokens = 1024) => {
     try {
-      const r = await fetch("https://api.anthropic.com/v1/messages", {
+      const r = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: maxTokens, messages })
+        body: JSON.stringify({ messages, max_tokens: maxTokens })
       });
       if (!r.ok) { console.warn("AI API error:", r.status); return null; }
       const d = await r.json();
