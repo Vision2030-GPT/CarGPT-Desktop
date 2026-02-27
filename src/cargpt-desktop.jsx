@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 
 // ═══════════════════════════════════════════════════
 // DATA — LOADED FROM SUPABASE (fallback to hardcoded)
@@ -63,6 +63,7 @@ const css = `
   --text: #1A1D21;
   --text-secondary: #6B7280;
   --text-tertiary: #9CA3AF;
+  --text-muted: #9CA3AF;
   --primary: #2563EB;
   --primary-light: #EFF6FF;
   --primary-dark: #1D4ED8;
@@ -81,7 +82,116 @@ const css = `
   --shadow-lg: 0 8px 30px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
   --shadow-xl: 0 16px 48px rgba(0,0,0,0.1), 0 4px 12px rgba(0,0,0,0.05);
   --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --card-bg: #FFFFFF;
+  --input-bg: #FFFFFF;
+  --modal-bg: #FFFFFF;
+  --overlay-bg: rgba(0,0,0,0.5);
+  --skeleton: #E5E7EB;
+  --badge-muted-bg: #F3F4F6;
+  --badge-muted-text: #6B7280;
 }
+
+/* ═══ DARK MODE ═══ */
+.dark {
+  --bg: #0F1117;
+  --surface: #1A1D27;
+  --surface-hover: #242836;
+  --border: #2A2E3B;
+  --border-light: #1F2330;
+  --text: #E8ECF0;
+  --text-secondary: #9CA3AF;
+  --text-tertiary: #6B7280;
+  --text-muted: #6B7280;
+  --primary: #3B82F6;
+  --primary-light: rgba(59,130,246,0.12);
+  --primary-dark: #60A5FA;
+  --success: #10B981;
+  --success-light: rgba(16,185,129,0.12);
+  --warning: #F59E0B;
+  --warning-light: rgba(245,158,11,0.12);
+  --error: #EF4444;
+  --error-light: rgba(239,68,68,0.12);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+  --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.2);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.2);
+  --shadow-xl: 0 16px 48px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.3);
+  --card-bg: #1A1D27;
+  --input-bg: #242836;
+  --modal-bg: #1A1D27;
+  --overlay-bg: rgba(0,0,0,0.7);
+  --skeleton: #2A2E3B;
+  --badge-muted-bg: #242836;
+  --badge-muted-text: #9CA3AF;
+}
+.dark body, .dark { background:var(--bg); color:var(--text); }
+.dark .card, .dark .detail-price-card { background:var(--card-bg); border-color:var(--border); }
+.dark input, .dark select, .dark textarea, .dark .input { background:var(--input-bg); color:var(--text); border-color:var(--border); }
+.dark .input:focus, .dark input:focus, .dark select:focus { border-color:var(--primary); }
+.dark .btn-outline { border-color:var(--border); color:var(--text); }
+.dark .btn-outline:hover { background:var(--surface-hover); }
+.dark .btn-secondary { background:var(--surface-hover); color:var(--text); }
+.dark .modal-overlay { background:var(--overlay-bg); }
+.dark .slide-over { background:var(--modal-bg); }
+.dark .slide-header { background:var(--modal-bg); border-color:var(--border); }
+.dark .navbar { background:var(--surface); border-color:var(--border); }
+.dark .bottom-nav { background:var(--surface); border-color:var(--border); }
+.dark .filter-select { background:var(--input-bg); color:var(--text); border-color:var(--border); }
+.dark .filter-pill { background:var(--surface); color:var(--text); border-color:var(--border); }
+.dark .filter-pill:hover { border-color:var(--text-tertiary); }
+.dark .fp-row { border-color:var(--border); }
+.dark .fp-row:hover { background:var(--surface-hover); }
+.dark .fp-option { background:var(--surface); color:var(--text); border-color:var(--border); }
+.dark .fp-option:hover { border-color:var(--text-tertiary); }
+.dark .filter-tag { background:var(--primary-light); color:var(--primary-dark); }
+.dark .tabs { border-color:var(--border); }
+.dark .tab-btn { color:var(--text-tertiary); }
+.dark .tab-btn.active { color:var(--primary); border-color:var(--primary); }
+.dark .info-cell { background:var(--surface); }
+.dark .badge-green { background:rgba(16,185,129,0.15); color:#34D399; }
+.dark .badge-blue { background:rgba(59,130,246,0.15); color:#60A5FA; }
+.dark .badge-red { background:rgba(239,68,68,0.15); color:#F87171; }
+.dark .progress { background:var(--border); }
+.dark .divider { background:var(--border); }
+.dark .chat-bubble { background:var(--surface-hover); color:var(--text); }
+.dark .chat-msg.user .chat-bubble { background:var(--primary); color:white; }
+.dark .quick-action { background:var(--surface); border-color:var(--border); color:var(--text); }
+.dark .quick-action:hover { background:var(--primary-light); }
+.dark .garage-hero { background:linear-gradient(135deg,#0F172A 0%,#1E293B 100%); }
+.dark .profile-header { background:linear-gradient(135deg,#0F172A 0%,#1E293B 100%); }
+.dark .settings-row { background:var(--surface); border-color:var(--border); }
+.dark .settings-row:hover { background:var(--surface-hover); }
+.dark .countdown-card { background:var(--surface); border-color:var(--border); }
+.dark .garage-action { background:var(--surface); border-color:var(--border); }
+.dark .garage-action:hover { background:var(--primary-light); border-color:var(--primary); }
+.dark .cost-bar-track { background:var(--border); }
+.dark .fav-list-item { background:var(--surface); border-color:var(--border); }
+.dark .fav-list-item:hover { background:var(--surface-hover); }
+.dark .specs-grid { background:var(--border); }
+.dark .spec-cell { background:var(--surface); }
+.dark .compare-table th { background:var(--surface-hover); color:var(--text-tertiary); border-color:var(--border); }
+.dark .compare-table td { border-color:var(--border); color:var(--text); }
+.dark .compare-highlight { background:rgba(16,185,129,0.12); color:#34D399; }
+.dark .detail-sticky-cta { background:var(--surface); border-color:var(--border); }
+.dark .detail-hero-fav { background:rgba(30,33,42,0.9); }
+.dark .fav-compare-header { background:var(--surface-hover); }
+.dark .fav-compare-label { background:var(--surface-hover); }
+.dark .fav-compare-cell { background:var(--surface); color:var(--text); }
+.dark .fav-compare-grid { background:var(--border); }
+.dark .profile-stats { background:var(--border); }
+.dark .profile-stat-cell { background:var(--surface); }
+.dark .fav-stat-row { background:var(--border); }
+.dark .fav-stat-cell { background:var(--surface); }
+.dark .toggle-switch { background:#374151; }
+.dark .onb-overlay { background:var(--bg); }
+.dark .onb-option { background:var(--surface); border-color:var(--border); color:var(--text); }
+.dark .onb-option:hover { border-color:var(--text-tertiary); }
+.dark .onb-chip { background:var(--surface); border-color:var(--border); color:var(--text); }
+.dark .onb-feature { background:var(--surface); border-color:var(--border); }
+.dark .onb-welcome-card { background:var(--surface); border-color:var(--border); }
+.dark .vehicle-card { background:var(--surface); border-color:var(--border); }
+.dark .hero-search { background:var(--surface); border-color:var(--border); }
+.dark ::selection { background:var(--primary); color:white; }
 
 * { margin:0; padding:0; box-sizing:border-box; }
 body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; }
@@ -334,6 +444,323 @@ input, select, textarea { font-family:var(--font); }
   padding:16px 0; border-bottom:2px solid var(--border);
 }
 
+/* GARAGE DASHBOARD */
+.garage-hero {
+  position:relative; border-radius:20px; overflow:hidden;
+  background:linear-gradient(135deg,#1E293B 0%,#0F172A 100%);
+  color:white; padding:24px; margin-bottom:20px;
+}
+.garage-hero-img {
+  width:100%; height:160px; object-fit:cover; border-radius:14px;
+  margin-bottom:16px; background:#334155;
+}
+.garage-vrm {
+  display:inline-block; padding:6px 16px; border-radius:6px;
+  background:#F7DC6F; color:#1A1A2E; font-weight:800;
+  font-size:15px; letter-spacing:1px; font-family:monospace;
+  border:2px solid #1A1A2E; margin-bottom:12px;
+}
+.garage-stat-row {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:16px;
+}
+.garage-stat {
+  text-align:center; padding:10px 4px;
+  background:rgba(255,255,255,0.08); border-radius:12px;
+}
+.garage-stat-val { font-size:16px; font-weight:800; }
+.garage-stat-label { font-size:10px; opacity:0.6; margin-top:2px; text-transform:uppercase; letter-spacing:0.5px; }
+
+/* Countdown rings */
+.countdown-grid {
+  display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:20px;
+}
+.countdown-card {
+  background:var(--surface); border:1px solid var(--border-light);
+  border-radius:16px; padding:16px; text-align:center;
+  transition:all 0.15s;
+}
+.countdown-card:hover { border-color:var(--border); }
+.countdown-ring {
+  width:72px; height:72px; border-radius:50%; margin:0 auto 10px;
+  display:flex; align-items:center; justify-content:center;
+  position:relative;
+}
+.countdown-ring svg { position:absolute; top:0; left:0; transform:rotate(-90deg); }
+.countdown-days { font-size:20px; font-weight:800; position:relative; z-index:1; }
+.countdown-unit { font-size:9px; font-weight:600; opacity:0.5; }
+.countdown-label { font-size:13px; font-weight:700; margin-bottom:2px; }
+.countdown-date { font-size:11px; color:var(--text-tertiary); }
+
+/* Quick actions */
+.garage-actions {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:20px;
+}
+.garage-action {
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+  padding:14px 8px; border-radius:14px; cursor:pointer;
+  background:var(--surface); border:1px solid var(--border-light);
+  transition:all 0.15s; text-align:center;
+}
+.garage-action:hover { border-color:var(--primary); background:var(--primary-light); }
+.garage-action-icon { font-size:22px; }
+.garage-action-label { font-size:11px; font-weight:600; color:var(--text-secondary); }
+
+/* Service timeline */
+.timeline { position:relative; padding-left:28px; }
+.timeline::before {
+  content:''; position:absolute; left:8px; top:4px; bottom:4px;
+  width:2px; background:var(--border);
+}
+.timeline-item { position:relative; padding-bottom:20px; }
+.timeline-dot {
+  position:absolute; left:-24px; top:2px;
+  width:16px; height:16px; border-radius:50%;
+  border:2.5px solid var(--primary); background:white; z-index:1;
+}
+.timeline-dot.green { border-color:var(--success); }
+.timeline-dot.amber { border-color:var(--warning); }
+.timeline-dot.red { border-color:var(--error); }
+.timeline-item:first-child .timeline-dot { background:var(--primary); }
+
+/* Cost mini bars */
+.cost-bar-row {
+  display:flex; align-items:center; gap:10px; padding:8px 0;
+}
+.cost-bar-label { font-size:12px; width:80px; flex-shrink:0; }
+.cost-bar-track {
+  flex:1; height:8px; background:#F3F4F6; border-radius:100px; overflow:hidden;
+}
+.cost-bar-fill {
+  height:100%; border-radius:100px; transition:width 0.5s ease;
+}
+.cost-bar-val { font-size:12px; font-weight:700; width:52px; text-align:right; flex-shrink:0; }
+
+/* PROFILE & SETTINGS */
+.profile-header {
+  text-align:center; padding:28px 20px 20px;
+  background:linear-gradient(135deg,#1E293B 0%,#0F172A 100%);
+  color:white; border-radius:20px; margin-bottom:20px;
+}
+.profile-avatar {
+  width:80px; height:80px; border-radius:50%; margin:0 auto 14px;
+  background:linear-gradient(135deg,#4285F4,#1a5cd6);
+  display:flex; align-items:center; justify-content:center;
+  color:white; font-size:32px; font-weight:800;
+  border:3px solid rgba(255,255,255,0.2);
+}
+.profile-badges {
+  display:flex; justify-content:center; gap:8px; margin-top:12px;
+}
+.profile-badge {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:4px 12px; border-radius:100px; font-size:11px; font-weight:600;
+  background:rgba(255,255,255,0.1); color:rgba(255,255,255,0.8);
+}
+.profile-stats {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:1px;
+  background:var(--border-light); border-radius:14px; overflow:hidden;
+  margin-bottom:20px;
+}
+.profile-stat-cell {
+  background:var(--surface); padding:16px 8px; text-align:center;
+}
+.profile-stat-val { font-size:18px; font-weight:800; color:var(--text); }
+.profile-stat-label { font-size:10px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.5px; margin-top:2px; }
+.settings-group {
+  margin-bottom:20px;
+}
+.settings-group-title {
+  font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;
+  color:var(--text-tertiary); padding:0 4px 8px; margin:0;
+}
+.settings-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 16px; background:var(--surface);
+  border-bottom:1px solid var(--border-light);
+  cursor:pointer; transition:background 0.1s;
+}
+.settings-row:first-of-type { border-radius:12px 12px 0 0; }
+.settings-row:last-of-type { border-radius:0 0 12px 12px; border-bottom:none; }
+.settings-row:only-of-type { border-radius:12px; }
+.settings-row:hover { background:#FAFAFA; }
+.settings-row-left { display:flex; align-items:center; gap:12px; }
+.settings-row-icon {
+  width:32px; height:32px; border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:16px; flex-shrink:0;
+}
+.settings-row-text { }
+.settings-row-label { font-size:14px; font-weight:600; color:var(--text); }
+.settings-row-desc { font-size:12px; color:var(--text-tertiary); margin-top:1px; }
+.settings-row-right { display:flex; align-items:center; gap:6px; }
+.settings-row-val { font-size:13px; color:var(--text-tertiary); }
+.settings-chevron { font-size:12px; color:var(--text-tertiary); }
+/* Toggle switch */
+.toggle-switch {
+  position:relative; width:44px; height:26px; border-radius:100px;
+  background:#D1D5DB; cursor:pointer; transition:background 0.2s;
+  border:none; padding:0; flex-shrink:0;
+}
+.toggle-switch.on { background:var(--primary); }
+.toggle-knob {
+  position:absolute; top:3px; left:3px;
+  width:20px; height:20px; border-radius:50%;
+  background:white; transition:transform 0.2s;
+  box-shadow:0 1px 3px rgba(0,0,0,0.15);
+}
+.toggle-switch.on .toggle-knob { transform:translateX(18px); }
+
+/* FAVOURITES PAGE */
+.fav-toolbar {
+  display:flex; justify-content:space-between; align-items:center;
+  margin-bottom:16px; gap:12px;
+}
+.fav-view-toggle {
+  display:flex; background:#F3F4F6; border-radius:10px; overflow:hidden;
+}
+.fav-view-btn {
+  padding:7px 14px; border:none; background:transparent;
+  font-size:12px; font-weight:600; cursor:pointer;
+  color:var(--text-muted); transition:all 0.15s;
+}
+.fav-view-btn.active { background:var(--primary); color:white; }
+.fav-list-item {
+  display:flex; gap:14px; padding:14px;
+  background:var(--surface); border:1px solid var(--border-light);
+  border-radius:14px; margin-bottom:10px; transition:all 0.15s;
+  cursor:pointer; align-items:center;
+}
+.fav-list-item:hover { border-color:var(--border); box-shadow:0 2px 8px rgba(0,0,0,0.04); }
+.fav-list-img {
+  width:100px; height:68px; border-radius:10px; overflow:hidden;
+  flex-shrink:0; background:#F3F4F6;
+}
+.fav-list-img img { width:100%; height:100%; object-fit:cover; }
+.fav-list-info { flex:1; min-width:0; }
+.fav-list-actions { display:flex; flex-direction:column; gap:6px; align-items:flex-end; flex-shrink:0; }
+.fav-note-badge {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:3px 10px; border-radius:6px; font-size:11px;
+  background:#FEF3C7; color:#92400E; max-width:200px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.fav-alert-badge {
+  display:inline-flex; align-items:center; gap:3px;
+  padding:3px 8px; border-radius:6px; font-size:10px; font-weight:600;
+  background:#DCFCE7; color:#166534;
+}
+.fav-compare-grid {
+  display:grid; gap:1px; background:var(--border-light);
+  border-radius:14px; overflow:hidden;
+}
+.fav-compare-cell {
+  background:var(--surface); padding:10px 12px; text-align:center;
+  font-size:13px;
+}
+.fav-compare-header {
+  background:#F8FAFC; font-weight:700; font-size:12px;
+  color:var(--text-secondary); padding:12px;
+}
+.fav-compare-label {
+  background:#F8FAFC; font-weight:600; font-size:11px;
+  color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.3px;
+  text-align:left; padding:10px 12px;
+}
+.fav-price-drop {
+  display:inline-flex; align-items:center; gap:3px;
+  font-size:11px; font-weight:700; color:#16A34A;
+}
+.fav-stat-row {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:1px;
+  background:var(--border-light); border-radius:12px; overflow:hidden; margin-bottom:16px;
+}
+.fav-stat-cell {
+  background:var(--surface); padding:14px 8px; text-align:center;
+}
+.fav-stat-val { font-size:20px; font-weight:800; }
+.fav-stat-label { font-size:10px; color:var(--text-tertiary); text-transform:uppercase; margin-top:2px; }
+
+/* ONBOARDING */
+.onb-overlay {
+  position:fixed; inset:0; z-index:20000;
+  background:white; display:flex; flex-direction:column;
+  overflow-y:auto;
+}
+.onb-content {
+  flex:1; display:flex; flex-direction:column;
+  max-width:480px; margin:0 auto; padding:32px 24px;
+  width:100%;
+}
+.onb-progress {
+  display:flex; gap:6px; margin-bottom:32px;
+}
+.onb-progress-dot {
+  flex:1; height:4px; border-radius:100px; background:#E5E7EB;
+  transition:all 0.3s;
+}
+.onb-progress-dot.active { background:var(--primary); }
+.onb-progress-dot.done { background:var(--success); }
+.onb-emoji { font-size:56px; margin-bottom:20px; }
+.onb-title { font-size:26px; font-weight:800; line-height:1.2; margin-bottom:8px; }
+.onb-subtitle { font-size:15px; color:var(--text-secondary); line-height:1.5; margin-bottom:32px; }
+.onb-options {
+  display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:24px;
+}
+.onb-option {
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+  padding:18px 12px; border-radius:16px;
+  border:2px solid var(--border-light); background:var(--surface);
+  cursor:pointer; transition:all 0.15s; text-align:center;
+}
+.onb-option:hover { border-color:#9CA3AF; }
+.onb-option.selected { border-color:var(--primary); background:var(--primary-light); }
+.onb-option-icon { font-size:28px; }
+.onb-option-label { font-size:13px; font-weight:700; }
+.onb-option-desc { font-size:11px; color:var(--text-tertiary); }
+.onb-chips {
+  display:flex; flex-wrap:wrap; gap:10px; margin-bottom:24px;
+}
+.onb-chip {
+  padding:10px 20px; border-radius:100px;
+  border:2px solid var(--border-light); background:var(--surface);
+  font-size:13px; font-weight:600; cursor:pointer;
+  transition:all 0.15s; display:flex; align-items:center; gap:6px;
+}
+.onb-chip:hover { border-color:#9CA3AF; }
+.onb-chip.selected { border-color:var(--primary); background:var(--primary-light); color:var(--primary); }
+.onb-footer {
+  display:flex; gap:12px; margin-top:auto; padding-top:24px;
+}
+.onb-feature-grid {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:24px;
+}
+.onb-feature {
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+  padding:14px 8px; border-radius:14px;
+  border:2px solid var(--border-light); background:var(--surface);
+  cursor:pointer; transition:all 0.15s; text-align:center;
+}
+.onb-feature:hover { border-color:#9CA3AF; }
+.onb-feature.selected { border-color:var(--primary); background:var(--primary-light); }
+.onb-feature-icon { font-size:24px; }
+.onb-feature-label { font-size:11px; font-weight:600; }
+.onb-welcome-cards {
+  display:flex; flex-direction:column; gap:12px; margin-bottom:24px;
+}
+.onb-welcome-card {
+  display:flex; align-items:center; gap:14px;
+  padding:16px; border-radius:14px; background:#F8FAFC;
+  border:1px solid var(--border-light);
+}
+.onb-welcome-card-icon {
+  width:44px; height:44px; border-radius:12px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:22px; flex-shrink:0;
+}
+.onb-welcome-card-text { }
+.onb-welcome-card-title { font-size:14px; font-weight:700; margin-bottom:2px; }
+.onb-welcome-card-desc { font-size:12px; color:var(--text-tertiary); }
+
 /* VEHICLE GRID */
 .vehicle-grid {
   display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));
@@ -522,9 +949,9 @@ input, select, textarea { font-family:var(--font); }
 .slide-body { padding:24px; }
 
 /* DETAIL PAGE */
-.detail-layout { display:grid; grid-template-columns:1fr 400px; gap:32px; padding:24px 0 80px; }
+.detail-layout { display:grid; grid-template-columns:1fr 380px; gap:28px; padding:0 0 120px; }
 .detail-hero-img {
-  height:400px; border-radius:var(--radius); display:flex;
+  height:420px; border-radius:16px; display:flex;
   align-items:center; justify-content:center;
   background:linear-gradient(135deg, #F8F9FA, #E9ECEF);
   overflow:hidden; position:relative;
@@ -532,9 +959,29 @@ input, select, textarea { font-family:var(--font); }
 .detail-hero-img img {
   width:100%; height:100%; object-fit:cover;
 }
+.detail-hero-badge {
+  position:absolute; top:14px; left:14px;
+  display:flex; gap:6px;
+}
+.detail-hero-badge .badge { backdrop-filter:blur(8px); }
+.detail-hero-fav {
+  position:absolute; top:14px; right:14px;
+  width:40px; height:40px; border-radius:50%;
+  background:rgba(255,255,255,0.9); backdrop-filter:blur(8px);
+  border:none; cursor:pointer; display:flex;
+  align-items:center; justify-content:center; font-size:18;
+  transition:all 0.2s; box-shadow:0 2px 8px rgba(0,0,0,0.1);
+}
+.detail-hero-fav:hover { transform:scale(1.1); }
+.detail-hero-counter {
+  position:absolute; bottom:14px; right:14px;
+  padding:5px 12px; border-radius:8px;
+  background:rgba(0,0,0,0.6); color:white;
+  font-size:12px; font-weight:600; backdrop-filter:blur(4px);
+}
 .gallery-dots {
   display:none; position:absolute; bottom:12px; left:50%;
-  transform:translateX(-50%); display:none;
+  transform:translateX(-50%);
   gap:6px; padding:6px 10px; background:rgba(0,0,0,0.4);
   border-radius:100px; backdrop-filter:blur(4px);
 }
@@ -544,13 +991,67 @@ input, select, textarea { font-family:var(--font); }
   .detail-hero-img { height:260px; border-radius:12px; }
   .gallery-dots { display:flex; }
 }
-.detail-sidebar { display:flex; flex-direction:column; gap:16px; }
+.gallery-strip {
+  display:flex; gap:8px; overflow-x:auto; padding:8px 0 4px;
+  scrollbar-width:none; -ms-overflow-style:none;
+}
+.gallery-strip::-webkit-scrollbar { display:none; }
+.gallery-thumb {
+  width:76px; height:52px; border-radius:10px; overflow:hidden;
+  cursor:pointer; flex-shrink:0; border:2.5px solid transparent;
+  transition:all 0.2s; opacity:0.65;
+}
+.gallery-thumb.active { border-color:var(--primary); opacity:1; }
+.gallery-thumb:hover { opacity:0.9; }
+.gallery-thumb img { width:100%; height:100%; object-fit:cover; }
+
+.detail-sidebar { display:flex; flex-direction:column; gap:16px; position:sticky; top:20px; align-self:start; }
 .detail-price-card {
   background:var(--surface); border:1px solid var(--border);
-  border-radius:var(--radius); padding:24px;
+  border-radius:16px; padding:24px;
 }
-.detail-price { font-size:28px; font-weight:800; color:var(--primary); margin-bottom:4px; }
+.detail-price { font-size:32px; font-weight:800; color:var(--text); margin-bottom:2px; letter-spacing:-0.5px; }
+.detail-price-sub { font-size:14px; color:var(--text-muted); margin-bottom:12px; }
 .detail-actions-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:16px; }
+
+/* Specs grid */
+.specs-grid {
+  display:grid; grid-template-columns:repeat(4, 1fr); gap:1px;
+  background:var(--border-light); border-radius:14px; overflow:hidden;
+  margin-bottom:20px;
+}
+.spec-cell {
+  background:var(--surface); padding:16px 10px; text-align:center;
+}
+.spec-icon { font-size:20px; margin-bottom:4px; }
+.spec-val { font-size:14px; font-weight:700; color:var(--text); }
+.spec-label { font-size:10px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.3px; margin-top:2px; }
+
+/* Sticky bottom CTA */
+.detail-sticky-cta {
+  position:fixed; bottom:0; left:0; right:0; z-index:90;
+  background:white; border-top:1px solid var(--border);
+  padding:12px 24px; display:flex; align-items:center; gap:12px;
+  box-shadow:0 -4px 20px rgba(0,0,0,0.08);
+}
+.detail-sticky-price { font-size:22px; font-weight:800; }
+.detail-sticky-sub { font-size:11px; color:var(--text-muted); }
+
+/* Compare inline */
+.compare-table {
+  width:100%; border-collapse:separate; border-spacing:0;
+  border-radius:14px; overflow:hidden; border:1px solid var(--border-light);
+}
+.compare-table th {
+  background:#F8F9FA; padding:10px 12px; font-size:11px;
+  font-weight:700; text-transform:uppercase; letter-spacing:0.3px;
+  color:var(--text-tertiary); text-align:left; border-bottom:1px solid var(--border-light);
+}
+.compare-table td {
+  padding:10px 12px; font-size:13px; border-bottom:1px solid var(--border-light);
+}
+.compare-table tr:last-child td { border-bottom:none; }
+.compare-highlight { background:#F0FDF4; font-weight:700; color:var(--success); }
 
 /* BUTTONS */
 .btn {
@@ -942,6 +1443,13 @@ export default function CarGPTDesktop() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [authModal, setAuthModal] = useState(null); // null | "login" | "signup"
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onbStep, setOnbStep] = useState(0);
+  const [onbBudget, setOnbBudget] = useState(null);
+  const [onbFuel, setOnbFuel] = useState([]);
+  const [onbBody, setOnbBody] = useState([]);
+  const [onbUse, setOnbUse] = useState(null);
+  const [onbFeatures, setOnbFeatures] = useState([]);
   const [authError, setAuthError] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
 
@@ -997,6 +1505,11 @@ export default function CarGPTDesktop() {
         }
         setAuthModal(null);
         setAEmail(""); setAPass(""); setAName("");
+        // Show onboarding for new signups
+        if (action === "signup") {
+          setShowOnboarding(true);
+          setOnbStep(0);
+        }
         // Load favourites after login
         loadFavourites(data.user.id);
         console.log("✅ Logged in:", data.user.email);
@@ -1039,6 +1552,12 @@ export default function CarGPTDesktop() {
 
   // Favourites & Data (persistent when logged in)
   const [favs, setFavs] = useState([]);
+  const [favView, setFavView] = useState("grid"); // grid, list, compare
+  const [favSort, setFavSort] = useState("added"); // added, price-low, price-high, mileage
+  const [favNotes, setFavNotes] = useState({}); // {vehicleId: "note text"}
+  const [favAlerts, setFavAlerts] = useState({}); // {vehicleId: true/false}
+  const [favEditNote, setFavEditNote] = useState(null); // vehicleId being edited
+  const [favNoteText, setFavNoteText] = useState("");
   const loadFavourites = (userId) => {
     if (!userId) return;
     fetch(`/api/favourites?user_id=${userId}`)
@@ -1283,6 +1802,21 @@ export default function CarGPTDesktop() {
   const [theoryScore, setTheoryScore] = useState(null);
   const [theoryQ, setTheoryQ] = useState(0);
   const [profTab, setProfTab] = useState("account");
+  const [prefNotifs, setPrefNotifs] = useState(true);
+  const [prefEmails, setPrefEmails] = useState(true);
+  const [prefDarkMode, setPrefDarkMode] = useState(false);
+  const [prefLocation, setPrefLocation] = useState(true);
+  const [prefPriceAlerts, setPrefPriceAlerts] = useState(true);
+  const [prefDealerMsgs, setPrefDealerMsgs] = useState(true);
+  const [prefDistUnit, setPrefDistUnit] = useState("miles");
+  const [prefSearchRadius, setPrefSearchRadius] = useState("national");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Dark mode — apply to body
+  useEffect(() => {
+    document.body.style.background = prefDarkMode ? "#0F1117" : "#F7F8FA";
+    document.body.style.color = prefDarkMode ? "#E8ECF0" : "#1A1D21";
+  }, [prefDarkMode]);
 
   // ═══ CORE FUNCTIONS ═══
   const calcFin = (price) => {
@@ -2334,7 +2868,7 @@ THE VEHICLE:
       {/* Results */}
       {filtered.length === 0 ? (
         <div style={{textAlign:"center",padding:"60px 20px"}}>
-          <div style={{width:64,height:64,borderRadius:16,background:"#F3F4F6",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:28,marginBottom:16}}>🔍</div>
+          <div style={{width:64,height:64,borderRadius:16,background:"var(--skeleton)",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:28,marginBottom:16}}>🔍</div>
           <div className="text-md font-bold mb-2">No cars match</div>
           <div className="text-sm text-muted mb-4">Try removing some filters</div>
           <button className="btn btn-primary" onClick={clearAllFilters}>Reset filters</button>
@@ -2354,7 +2888,7 @@ THE VEHICLE:
           <div style={{padding:"0 24px 100px"}}>
             {/* Saved search link */}
             {!user && (
-              <div style={{padding:"12px 16px",margin:"16px 0",background:"#F8FAFC",borderRadius:10,textAlign:"center"}}>
+              <div style={{padding:"12px 16px",margin:"16px 0",background:"var(--surface-hover)",borderRadius:10,textAlign:"center"}}>
                 <button onClick={()=>{setShowFilterPanel(false);setAuthModal("login");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,fontWeight:600,color:"var(--primary)"}}>
                   Sign in to see your saved searches →
                 </button>
@@ -2440,7 +2974,7 @@ THE VEHICLE:
           {/* Sticky bottom bar */}
           <div style={{
             position:"sticky",bottom:0,padding:"16px 24px",
-            background:"white",borderTop:"1px solid var(--border)",
+            background:"var(--surface)",borderTop:"1px solid var(--border)",
             display:"flex",gap:12
           }}>
             <button className="btn btn-outline" style={{flex:1}} onClick={clearAllFilters}>Clear all</button>
@@ -2466,19 +3000,229 @@ THE VEHICLE:
         </div>
       </div>
     );
+
+    const favCars = V.filter(v=>favs.includes(v.id));
+    // Sort
+    const sorted = [...favCars].sort((a,b) => {
+      if(favSort==="price-low") return a.price - b.price;
+      if(favSort==="price-high") return b.price - a.price;
+      if(favSort==="mileage") return a.mileage - b.mileage;
+      return favs.indexOf(a.id) - favs.indexOf(b.id); // added order
+    });
+
+    // Simulated price changes for demo
+    const priceChanges = {1:-500, 3:-1200, 5:-200};
+    const totalValue = favCars.reduce((a,v)=>a+v.price,0);
+    const avgPrice = favCars.length ? Math.round(totalValue/favCars.length) : 0;
+    const alertCount = Object.values(favAlerts).filter(Boolean).length;
+
     return (
       <div className="section" style={{paddingBottom:80}}>
-        <div className="section-head">
-          <div className="section-title">❤️ Saved Cars ({favs.length})</div>
+        {/* Header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+          <div>
+            <div className="text-lg font-extra">Saved Cars</div>
+            <div className="text-sm text-muted">{favs.length} car{favs.length!==1?"s":""} saved</div>
+          </div>
+          {favs.length > 0 && (
+            <button className="btn btn-outline btn-sm" style={{fontSize:12}} onClick={()=>{
+              if(favCars.length>=2){setFavView("compare");}
+            }}>⚖️ Compare all</button>
+          )}
         </div>
-        {favs.length>0 ?
-          <div className="vehicle-grid">{V.filter(v=>favs.includes(v.id)).map(v => VCard({v}))}</div> :
+
+        {favs.length === 0 ? (
           <div className="card text-center" style={{padding:60}}>
             <div style={{fontSize:48,marginBottom:12}}>🤍</div>
             <div className="text-md font-bold mb-2">No saved cars yet</div>
-            <div className="text-sm text-muted">Tap the heart on any car to save it here</div>
+            <div className="text-sm text-muted mb-4">Tap the heart on any car to save it here</div>
+            <button className="btn btn-primary" onClick={()=>setPage("search")}>Browse Cars</button>
           </div>
-        }
+        ) : (<>
+          {/* Stats row */}
+          <div className="fav-stat-row">
+            <div className="fav-stat-cell">
+              <div className="fav-stat-val">{favs.length}</div>
+              <div className="fav-stat-label">Saved</div>
+            </div>
+            <div className="fav-stat-cell">
+              <div className="fav-stat-val">{fmt(avgPrice)}</div>
+              <div className="fav-stat-label">Avg Price</div>
+            </div>
+            <div className="fav-stat-cell">
+              <div className="fav-stat-val" style={{color:alertCount>0?"var(--success)":"var(--text-muted)"}}>{alertCount}</div>
+              <div className="fav-stat-label">Alerts On</div>
+            </div>
+          </div>
+
+          {/* Toolbar */}
+          <div className="fav-toolbar">
+            <div className="fav-view-toggle">
+              {[{k:"grid",l:"Grid"},{k:"list",l:"List"},{k:"compare",l:"Compare"}].map(v=>(
+                <button key={v.k} className={`fav-view-btn${favView===v.k?" active":""}`} onClick={()=>setFavView(v.k)}>{v.l}</button>
+              ))}
+            </div>
+            <select className="filter-select" value={favSort} onChange={e=>setFavSort(e.target.value)} style={{padding:"6px 28px 6px 10px",fontSize:12}}>
+              <option value="added">Recently added</option>
+              <option value="price-low">Price: low to high</option>
+              <option value="price-high">Price: high to low</option>
+              <option value="mileage">Lowest mileage</option>
+            </select>
+          </div>
+
+          {/* GRID VIEW */}
+          {favView==="grid" && (
+            <div className="vehicle-grid">
+              {sorted.map(v => {
+                const drop = priceChanges[v.id];
+                return (
+                  <div key={v.id} style={{position:"relative"}}>
+                    {VCard({v})}
+                    {/* Overlay extras */}
+                    <div style={{padding:"0 4px",marginTop:-8}}>
+                      {drop && <div className="fav-price-drop" style={{marginBottom:4}}>↓ {fmt(Math.abs(drop))} price drop</div>}
+                      <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                        {favNotes[v.id] && <span className="fav-note-badge">📝 {favNotes[v.id]}</span>}
+                        {favAlerts[v.id] && <span className="fav-alert-badge">🔔 Alert on</span>}
+                      </div>
+                      <div style={{display:"flex",gap:6,marginTop:6}}>
+                        <button className="btn btn-outline btn-sm" style={{fontSize:10,padding:"4px 10px",flex:1}} onClick={(e)=>{
+                          e.stopPropagation();
+                          setFavEditNote(favEditNote===v.id?null:v.id);
+                          setFavNoteText(favNotes[v.id]||"");
+                        }}>📝 Note</button>
+                        <button className={`btn btn-sm ${favAlerts[v.id]?"btn-primary":"btn-outline"}`} style={{fontSize:10,padding:"4px 10px",flex:1}} onClick={(e)=>{
+                          e.stopPropagation();
+                          setFavAlerts(p=>({...p,[v.id]:!p[v.id]}));
+                        }}>{favAlerts[v.id]?"🔔 Alert on":"🔕 Set alert"}</button>
+                      </div>
+                      {favEditNote===v.id && (
+                        <div className="fade-in" style={{marginTop:8}}>
+                          <textarea className="input" placeholder="Add a note about this car..." value={favNoteText} onChange={e=>setFavNoteText(e.target.value)}
+                            style={{width:"100%",minHeight:60,fontSize:12,resize:"vertical",marginBottom:6}}/>
+                          <div style={{display:"flex",gap:6}}>
+                            <button className="btn btn-primary btn-sm" style={{flex:1,fontSize:11}} onClick={()=>{
+                              setFavNotes(p=>({...p,[v.id]:favNoteText}));
+                              setFavEditNote(null);
+                            }}>Save</button>
+                            {favNotes[v.id] && <button className="btn btn-outline btn-sm" style={{fontSize:11,color:"var(--error)"}} onClick={()=>{
+                              setFavNotes(p=>{const n={...p};delete n[v.id];return n;});
+                              setFavEditNote(null);
+                            }}>Delete</button>}
+                            <button className="btn btn-outline btn-sm" style={{fontSize:11}} onClick={()=>setFavEditNote(null)}>Cancel</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* LIST VIEW */}
+          {favView==="list" && (
+            <div>
+              {sorted.map(v => {
+                const drop = priceChanges[v.id];
+                const fin = calcFin(v.price);
+                return (
+                  <div key={v.id} className="fav-list-item" onClick={()=>{setSel(v);setPage("search");setGalleryAngle(1);setDetailTab("details");}}>
+                    <div className="fav-list-img">
+                      <img src={carImg(v.make,v.model,v.year)} alt={v.make}/>
+                    </div>
+                    <div className="fav-list-info">
+                      <div className="text-sm font-bold" style={{marginBottom:2}}>{v.year} {v.make} {v.model}</div>
+                      <div className="text-xs text-muted" style={{marginBottom:4}}>{v.variant} · {fmtMi(v.mileage)} · {v.fuel} · {v.transmission}</div>
+                      <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                        <span className={`badge ${v.priceRating.includes("Great")?"badge-green":"badge-green"}`} style={{fontSize:10}}>{v.priceRating}</span>
+                        {drop && <span className="fav-price-drop">↓ {fmt(Math.abs(drop))}</span>}
+                        {favNotes[v.id] && <span className="fav-note-badge" style={{fontSize:10}}>📝 {favNotes[v.id]}</span>}
+                        {favAlerts[v.id] && <span className="fav-alert-badge">🔔</span>}
+                      </div>
+                    </div>
+                    <div className="fav-list-actions">
+                      <div className="text-md font-extra">{fmt(v.price)}</div>
+                      <div className="text-xs text-muted">£{fin.monthly}/mo</div>
+                      <div style={{display:"flex",gap:4,marginTop:4}}>
+                        <button className="btn btn-outline btn-sm" style={{fontSize:10,padding:"3px 8px"}} onClick={(e)=>{
+                          e.stopPropagation();
+                          setFavAlerts(p=>({...p,[v.id]:!p[v.id]}));
+                        }}>{favAlerts[v.id]?"🔔":"🔕"}</button>
+                        <button className="btn btn-outline btn-sm" style={{fontSize:10,padding:"3px 8px",color:"var(--error)"}} onClick={(e)=>{
+                          e.stopPropagation(); toggleFav(v.id);
+                        }}>✕</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* COMPARE VIEW */}
+          {favView==="compare" && favCars.length >= 2 && (
+            <div style={{overflowX:"auto"}}>
+              <div className="card" style={{padding:0,minWidth:favCars.length*160+120}}>
+                <div className="fav-compare-grid" style={{gridTemplateColumns:`120px repeat(${sorted.length},1fr)`}}>
+                  {/* Header row — car images + names */}
+                  <div className="fav-compare-header"/>
+                  {sorted.map(v=>(
+                    <div key={v.id} className="fav-compare-header" style={{cursor:"pointer"}} onClick={()=>{setSel(v);setPage("search");setGalleryAngle(1);setDetailTab("details");}}>
+                      <div style={{width:60,height:40,borderRadius:8,overflow:"hidden",margin:"0 auto 6px",background:"var(--skeleton)"}}>
+                        <img src={carImg(v.make,v.model,v.year)} alt={v.make} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                      </div>
+                      <div style={{fontSize:11,fontWeight:700}}>{v.make} {v.model}</div>
+                      <div style={{fontSize:10,color:"var(--text-tertiary)"}}>{v.year}</div>
+                    </div>
+                  ))}
+
+                  {/* Data rows */}
+                  {[
+                    {label:"Price",get:v=>fmt(v.price),best:(vals)=>{const prices=vals.map(v=>v.price);return prices.indexOf(Math.min(...prices));}},
+                    {label:"Monthly",get:v=>"£"+calcFin(v.price).monthly+"/mo"},
+                    {label:"Mileage",get:v=>fmtMi(v.mileage),best:(vals)=>{const m=vals.map(v=>v.mileage);return m.indexOf(Math.min(...m));}},
+                    {label:"Year",get:v=>""+v.year,best:(vals)=>{const y=vals.map(v=>v.year);return y.indexOf(Math.max(...y));}},
+                    {label:"Fuel",get:v=>v.fuel},
+                    {label:"Power",get:v=>v.specs.bhp+"bhp",best:(vals)=>{const b=vals.map(v=>v.specs.bhp);return b.indexOf(Math.max(...b));}},
+                    {label:"0-62",get:v=>v.specs.acceleration+"s",best:(vals)=>{const a=vals.map(v=>v.specs.acceleration);return a.indexOf(Math.min(...a));}},
+                    {label:"Economy",get:v=>typeof v.specs.fuelEconomy==="number"?v.specs.fuelEconomy+" mpg":""+v.specs.fuelEconomy},
+                    {label:"Boot",get:v=>v.specs.bootSpace+"L",best:(vals)=>{const b=vals.map(v=>v.specs.bootSpace);return b.indexOf(Math.max(...b));}},
+                    {label:"Insurance",get:v=>"Group "+v.insuranceGroup,best:(vals)=>{const ig=vals.map(v=>v.insuranceGroup);return ig.indexOf(Math.min(...ig));}},
+                    {label:"Tax",get:v=>v.taxCost===0?"FREE":"£"+v.taxCost+"/yr",best:(vals)=>{const t=vals.map(v=>v.taxCost);return t.indexOf(Math.min(...t));}},
+                    {label:"Rating",get:v=>v.priceRating},
+                    {label:"ULEZ",get:v=>v.ulezCompliant?"✅ Yes":"❌ No"},
+                  ].map((row,ri) => (
+                    <React.Fragment key={ri}>
+                    <div className="fav-compare-label">{row.label}</div>
+                    {sorted.map((v,vi) => {
+                      const isBest = row.best ? row.best(sorted) === vi : false;
+                      return <div key={v.id} className="fav-compare-cell" style={{fontWeight:isBest?700:400,color:isBest?"var(--success)":"var(--text)"}}>{row.get(v)}</div>;
+                    })}
+                  </React.Fragment>))}
+
+                  {/* Action row */}
+                  <div className="fav-compare-label">Actions</div>
+                  {sorted.map(v=>(
+                    <div key={v.id} className="fav-compare-cell" style={{padding:"8px 6px"}}>
+                      <button className="btn btn-primary btn-sm btn-block" style={{fontSize:10,padding:"5px 8px",marginBottom:4}} onClick={()=>{setSel(v);setPage("search");setGalleryAngle(1);setDetailTab("details");}}>View</button>
+                      <button className="btn btn-outline btn-sm btn-block" style={{fontSize:10,padding:"5px 8px"}} onClick={()=>openDChat(v.id)}>Message</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="text-xs text-muted mt-3" style={{textAlign:"center"}}>Green values show the best in each category. Scroll horizontally for more.</div>
+            </div>
+          )}
+
+          {favView==="compare" && favCars.length < 2 && (
+            <div className="card text-center" style={{padding:40}}>
+              <div style={{fontSize:32,marginBottom:8}}>⚖️</div>
+              <div className="text-sm font-bold mb-2">Save at least 2 cars to compare</div>
+              <div className="text-xs text-muted">Add more cars from Browse to unlock comparison</div>
+            </div>
+          )}
+        </>)}
       </div>
     );
   };
@@ -2578,40 +3322,204 @@ THE VEHICLE:
         </div>
       </div>
     );
+
+    const g = GARAGE[0];
+    const today = new Date();
+    const daysBetween = (d) => Math.ceil((new Date(d) - today) / (1000*60*60*24));
+    const motDays = daysBetween(g.motExpiry);
+    const taxDays = daysBetween(g.taxExpiry);
+    const insDays = 94; // simulated
+    const serviceMiles = 2500; // simulated
+
+    const ringColor = (days) => days <= 14 ? "#DC2626" : days <= 30 ? "#F59E0B" : "#22C55E";
+    const ringPct = (days, max=365) => Math.min(Math.max(days/max, 0), 1);
+
+    const CountdownRing = ({days, label, date, icon, max=365}) => {
+      const r = 30, circ = 2 * Math.PI * r;
+      const col = ringColor(days);
+      const pct = ringPct(days, max);
+      return (
+        <div className="countdown-card">
+          <div className="countdown-ring">
+            <svg width="72" height="72"><circle cx="36" cy="36" r={r} fill="none" stroke="#F3F4F6" strokeWidth="5"/>
+            <circle cx="36" cy="36" r={r} fill="none" stroke={col} strokeWidth="5" strokeLinecap="round"
+              strokeDasharray={circ} strokeDashoffset={circ * (1 - pct)}/></svg>
+            <div><div className="countdown-days" style={{color:col}}>{days}</div><div className="countdown-unit">days</div></div>
+          </div>
+          <div className="countdown-label">{icon} {label}</div>
+          <div className="countdown-date">{date}</div>
+        </div>
+      );
+    };
+
+    const total6m = EXPENSES.reduce((a,m)=>a+m.fuel+m.insurance+m.tax+m.mot+m.service+m.parking+m.tolls+m.other,0);
+    const monthlyAvg = Math.round(total6m / EXPENSES.length);
+    const cats = [
+      {l:"Fuel",v:EXPENSES.reduce((a,m)=>a+m.fuel,0),col:"#3B82F6"},
+      {l:"Insurance",v:EXPENSES.reduce((a,m)=>a+m.insurance,0),col:"#8B5CF6"},
+      {l:"Tax",v:EXPENSES.reduce((a,m)=>a+m.tax,0),col:"#F59E0B"},
+      {l:"Servicing",v:EXPENSES.reduce((a,m)=>a+m.service+m.mot,0),col:"#22C55E"},
+      {l:"Parking",v:EXPENSES.reduce((a,m)=>a+m.parking,0),col:"#EC4899"},
+      {l:"Other",v:EXPENSES.reduce((a,m)=>a+m.tolls+m.other,0),col:"#6B7280"},
+    ].filter(c=>c.v>0).sort((a,b)=>b.v-a.v);
+    const maxCat = cats[0]?.v || 1;
+
     return (
     <div className="section" style={{paddingBottom:80}}>
-      <div className="section-head"><div className="section-title">🚗 My Garage</div></div>
-      {GARAGE.map(g => (
-        <div key={g.id} className="card mb-4">
-          <div className="flex gap-4 items-center mb-4">
-            <div style={{width:72,height:72,display:"flex",alignItems:"center",justifyContent:"center",background:"#F3F4F6",borderRadius:12,overflow:"hidden"}}><img src={carImg(g.make,g.model,g.year)} alt={g.make} style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
-            <div>
-              <div className="text-lg font-extra">{g.year} {g.make} {g.model}</div>
-              <div className="text-sm text-muted">{g.vrm} · {g.colour} · {g.variant}</div>
-            </div>
+      {/* Hero Car Card */}
+      <div className="garage-hero">
+        <div className="garage-hero-img" style={{display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
+          <img src={carImg(g.make,g.model,g.year)} alt={g.make} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+        </div>
+        <div className="garage-vrm">{g.vrm}</div>
+        <div style={{fontSize:22,fontWeight:800,marginBottom:2}}>{g.year} {g.make} {g.model}</div>
+        <div style={{fontSize:13,opacity:0.6}}>{g.variant} · {g.colour} · {fmtMi(g.mileage)}</div>
+        <div className="garage-stat-row">
+          <div className="garage-stat">
+            <div className="garage-stat-val">{fmt(g.value)}</div>
+            <div className="garage-stat-label">Est. Value</div>
           </div>
-          <div className="info-grid mb-4">
-            {[{l:"Mileage",v:fmtMi(g.mileage)},{l:"Value",v:fmt(g.value)},{l:"MOT Expires",v:g.motExpiry},{l:"Tax Due",v:g.taxExpiry}].map((s,i) =>
-              <div key={i} className="info-cell"><div className="info-val">{s.v}</div><div className="info-label">{s.l}</div></div>
-            )}
+          <div className="garage-stat">
+            <div className="garage-stat-val">{fmt(monthlyAvg)}</div>
+            <div className="garage-stat-label">Monthly Cost</div>
           </div>
-          <div className="flex gap-2">
-            <button className="btn btn-primary flex-1" onClick={()=>{setValReg(g.vrm);setValResult(null);openModal("valuation");}}>💷 Value My Car</button>
-            <button className="btn btn-outline flex-1" onClick={()=>openModal("service")}>🔧 Service History</button>
-            <button className="btn btn-outline flex-1" onClick={()=>openModal("costs")}>📊 Costs</button>
-          </div>
-          <div className="divider"/>
-          <div className="label-sm">Upcoming Reminders</div>
-          <div>
-            {[{icon:"📋",label:"MOT Due",val:"31 days",c:"var(--warning)"},{icon:"💰",label:"Tax Renewal",val:"48 days"},{icon:"🔧",label:"Next Service",val:"~2,500 mi"},{icon:"🛡️",label:"Insurance",val:"94 days"}].map((r,i) =>
-              <div key={i} className="flex justify-between items-center" style={{padding:"8px 0",borderBottom:i<3?"1px solid var(--border-light)":"none"}}>
-                <span className="text-sm">{r.icon} {r.label}</span>
-                <span className="text-sm font-bold" style={{color:r.c||"var(--text)"}}>{r.val}</span>
-              </div>
-            )}
+          <div className="garage-stat">
+            <div className="garage-stat-val" style={{color:motDays<=30?"#FCA5A5":"#86EFAC"}}>{motDays}d</div>
+            <div className="garage-stat-label">MOT Due</div>
           </div>
         </div>
-      ))}
+      </div>
+
+      {/* Countdown Rings */}
+      <div className="countdown-grid">
+        <CountdownRing days={motDays} label="MOT" date={g.motExpiry} icon="📋"/>
+        <CountdownRing days={taxDays} label="Road Tax" date={g.taxExpiry} icon="💰"/>
+        <CountdownRing days={insDays} label="Insurance" date="2026-06-01" icon="🛡️"/>
+        <div className="countdown-card">
+          <div className="countdown-ring">
+            <svg width="72" height="72"><circle cx="36" cy="36" r="30" fill="none" stroke="#F3F4F6" strokeWidth="5"/>
+            <circle cx="36" cy="36" r="30" fill="none" stroke="#3B82F6" strokeWidth="5" strokeLinecap="round"
+              strokeDasharray={2*Math.PI*30} strokeDashoffset={2*Math.PI*30*(1-serviceMiles/10000)}/></svg>
+            <div><div className="countdown-days" style={{color:"#3B82F6",fontSize:16}}>~{(serviceMiles/1000).toFixed(1)}k</div><div className="countdown-unit">miles</div></div>
+          </div>
+          <div className="countdown-label">🔧 Service</div>
+          <div className="countdown-date">Next due ~{(serviceMiles).toLocaleString()} mi</div>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="garage-actions">
+        {[
+          {icon:"💷",label:"Value Car",action:()=>{setValReg(g.vrm);setValResult(null);openModal("valuation");}},
+          {icon:"📊",label:"Costs",action:()=>openModal("costs")},
+          {icon:"🔧",label:"Service",action:()=>openModal("service")},
+          {icon:"⚠️",label:"Lights",action:()=>openModal("warning")},
+          {icon:"📋",label:"MOT History",action:()=>{/* scroll to timeline */}},
+          {icon:"🏢",label:"BIK Tax",action:()=>openModal("companycar")},
+          {icon:"🚨",label:"Accident",action:()=>openModal("accident")},
+          {icon:"🤖",label:"Ask AI",action:()=>{sendChat(`Tell me about my ${g.year} ${g.make} ${g.model}. How is it holding its value?`);}},
+        ].map((a,i) => (
+          <div key={i} className="garage-action" onClick={a.action}>
+            <div className="garage-action-icon">{a.icon}</div>
+            <div className="garage-action-label">{a.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Running Costs Summary */}
+      <div className="card mb-4">
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div>
+            <div className="text-sm font-bold">Running Costs</div>
+            <div className="text-xs text-muted">Last 6 months</div>
+          </div>
+          <div style={{textAlign:"right"}}>
+            <div className="text-lg font-extra" style={{color:"var(--primary)"}}>{fmt(total6m)}</div>
+            <div className="text-xs text-muted">~{fmt(monthlyAvg)}/mo</div>
+          </div>
+        </div>
+        {cats.map((c,i) => (
+          <div key={i} className="cost-bar-row">
+            <div className="cost-bar-label" style={{color:c.col,fontWeight:600}}>{c.l}</div>
+            <div className="cost-bar-track">
+              <div className="cost-bar-fill" style={{width:`${(c.v/maxCat)*100}%`,background:c.col}}/>
+            </div>
+            <div className="cost-bar-val">{fmt(c.v)}</div>
+          </div>
+        ))}
+        {/* Monthly sparkline */}
+        <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid var(--border-light)"}}>
+          <div className="text-xs text-muted mb-2">Monthly spend</div>
+          <div style={{display:"flex",alignItems:"flex-end",gap:4,height:48}}>
+            {EXPENSES.map((m,i) => {
+              const t = m.fuel+m.insurance+m.tax+m.mot+m.service+m.parking+m.tolls+m.other;
+              const maxM = 520;
+              return (
+                <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                  <div style={{
+                    width:"100%",height:`${(t/maxM)*40}px`,minHeight:4,
+                    background:"var(--primary)",borderRadius:4,opacity:0.15+0.85*(t/maxM)
+                  }}/>
+                  <div className="text-xs text-muted" style={{fontSize:9}}>{m.month}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <button className="btn btn-outline btn-block mt-3" onClick={()=>openModal("costs")} style={{fontSize:13}}>View full breakdown →</button>
+      </div>
+
+      {/* Service Timeline */}
+      <div className="card mb-4">
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div className="text-sm font-bold">Service History</div>
+          <button className="btn btn-primary btn-sm" onClick={()=>openModal("service")} style={{fontSize:12}}>Book service</button>
+        </div>
+        <div className="timeline">
+          {g.services.map((s,i) => (
+            <div key={i} className="timeline-item">
+              <div className={`timeline-dot ${i===0?"":"green"}`}/>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div>
+                  <div className="text-sm font-bold">{s.type}</div>
+                  <div className="text-xs text-muted">{s.date} · {s.garage}</div>
+                </div>
+                <span className="text-sm font-bold">{fmt(s.cost)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{paddingLeft:28,paddingTop:4}} className="text-xs text-muted">
+          Total: <strong>{fmt(g.services.reduce((a,s)=>a+s.cost,0))}</strong> across {g.services.length} services
+        </div>
+      </div>
+
+      {/* Car Health Check */}
+      <div className="card mb-4">
+        <div className="text-sm font-bold mb-3">Vehicle Health</div>
+        {[
+          {label:"HPI Clear",val:"✅ No issues",col:"var(--success)"},
+          {label:"Service History",val:"✅ Full history",col:"var(--success)"},
+          {label:"Previous Keepers",val:"1",col:"var(--text)"},
+          {label:"Euro Emissions",val:"Euro 6d",col:"var(--text)"},
+          {label:"ULEZ Compliant",val:"✅ Yes",col:"var(--success)"},
+        ].map((h,i) => (
+          <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:i<4?"1px solid var(--border-light)":"none"}}>
+            <span className="text-sm text-muted">{h.label}</span>
+            <span className="text-sm font-bold" style={{color:h.col}}>{h.val}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Add another car */}
+      <div className="card" style={{
+        textAlign:"center",padding:24,border:"2px dashed var(--border)",
+        background:"transparent",cursor:"pointer"
+      }} onClick={()=>openModal("valuation")}>
+        <div style={{fontSize:28,marginBottom:8}}>➕</div>
+        <div className="text-sm font-bold">Add another car</div>
+        <div className="text-xs text-muted">Enter a reg to add to your garage</div>
+      </div>
     </div>
     );
   };
@@ -2633,51 +3541,409 @@ THE VEHICLE:
         </div>
       );
     }
+
+    const Toggle = ({on, onToggle}) => (
+      <button className={`toggle-switch${on?" on":""}`} onClick={onToggle}>
+        <div className="toggle-knob"/>
+      </button>
+    );
+
+    const joined = user.joined ? new Date(user.joined).toLocaleDateString("en-GB",{month:"long",year:"numeric"}) : "February 2026";
+
     return (
       <div className="section" style={{paddingBottom:80, maxWidth:600}}>
-        <div className="text-center mb-4" style={{padding:20}}>
-          <div style={{
-            width:72,height:72,borderRadius:"50%",margin:"0 auto 12px",
-            background:"linear-gradient(135deg,var(--primary),#1a5cd6)",
-            display:"flex",alignItems:"center",justifyContent:"center",
-            color:"white",fontSize:28,fontWeight:800
-          }}>{user.name?.charAt(0)?.toUpperCase()||"U"}</div>
-          <div className="text-lg font-extra">{user.name}</div>
-          <div className="text-sm text-muted">{user.plan==="pro"?"CarGPT Pro Member":"CarGPT Free"}</div>
+        {/* Profile Header */}
+        <div className="profile-header">
+          <div className="profile-avatar">{user.name?.charAt(0)?.toUpperCase()||"U"}</div>
+          <div style={{fontSize:22,fontWeight:800}}>{user.name}</div>
+          <div style={{fontSize:13,opacity:0.6,marginTop:2}}>{user.email}</div>
+          <div className="profile-badges">
+            <span className="profile-badge">{user.plan==="pro"?"⭐ Pro Member":"Free Plan"}</span>
+            <span className="profile-badge">📅 Since {joined}</span>
+          </div>
         </div>
+
+        {/* Quick Stats */}
+        <div className="profile-stats">
+          <div className="profile-stat-cell">
+            <div className="profile-stat-val">{favs.length}</div>
+            <div className="profile-stat-label">Saved Cars</div>
+          </div>
+          <div className="profile-stat-cell">
+            <div className="profile-stat-val">{savedSearches.length}</div>
+            <div className="profile-stat-label">Searches</div>
+          </div>
+          <div className="profile-stat-cell">
+            <div className="profile-stat-val">{GARAGE.length}</div>
+            <div className="profile-stat-label">In Garage</div>
+          </div>
+        </div>
+
+        {/* Tabs */}
         <div className="tabs mb-4">
-          {["account","prefs","about"].map(t =>
-            <button key={t} className={`tab-btn ${profTab===t?"active":""}`} onClick={()=>setProfTab(t)}>
-              {t==="account"?"Account":t==="prefs"?"Preferences":"About"}
+          {["account","notifications","preferences","about"].map(t =>
+            <button key={t} className={`tab-btn ${profTab===t?"active":""}`} onClick={()=>setProfTab(t)} style={{fontSize:12,padding:"8px 12px"}}>
+              {{account:"Account",notifications:"Alerts",preferences:"Settings",about:"About"}[t]}
             </button>
           )}
         </div>
-        {profTab==="account" && <div className="card">
-          {[
-            {l:"Email",v:user.email},
-            {l:"Plan",v:user.plan==="pro"?"Pro (£9.99/mo)":"Free"},
-            {l:"Saved Cars",v:`${favs.length} favourites`},
-            {l:"Joined",v:user.joined ? new Date(user.joined).toLocaleDateString("en-GB",{month:"long",year:"numeric"}) : "February 2026"},
-          ].map((r,i) =>
-            <div key={i} className="flex justify-between" style={{padding:"12px 0",borderBottom:i<3?"1px solid var(--border-light)":"none"}}>
-              <span className="text-sm text-muted">{r.l}</span><span className="text-sm font-bold">{r.v}</span>
+
+        {/* ACCOUNT TAB */}
+        {profTab==="account" && <>
+          <div className="settings-group">
+            <div className="settings-group-title">Personal Information</div>
+            <div className="settings-row" style={{borderRadius:"12px 12px 0 0"}}>
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#EFF6FF"}}>👤</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">Full Name</div>
+                  <div className="settings-row-desc">{user.name}</div>
+                </div>
+              </div>
+              <span className="settings-chevron">›</span>
+            </div>
+            <div className="settings-row">
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#EFF6FF"}}>✉️</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">Email</div>
+                  <div className="settings-row-desc">{user.email}</div>
+                </div>
+              </div>
+              <span className="settings-chevron">›</span>
+            </div>
+            <div className="settings-row">
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#EFF6FF"}}>📱</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">Phone</div>
+                  <div className="settings-row-desc">+44 7700 900123</div>
+                </div>
+              </div>
+              <span className="settings-chevron">›</span>
+            </div>
+            <div className="settings-row" style={{borderRadius:"0 0 12px 12px"}}>
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#EFF6FF"}}>📍</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">Postcode</div>
+                  <div className="settings-row-desc">E14 5AB</div>
+                </div>
+              </div>
+              <span className="settings-chevron">›</span>
+            </div>
+          </div>
+
+          <div className="settings-group">
+            <div className="settings-group-title">Subscription</div>
+            <div className="settings-row" style={{borderRadius:12}}>
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:user.plan==="pro"?"#FEF3C7":"#F3F4F6"}}>{user.plan==="pro"?"⭐":"🆓"}</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">{user.plan==="pro"?"CarGPT Pro":"Free Plan"}</div>
+                  <div className="settings-row-desc">{user.plan==="pro"?"£9.99/month · Renews 15 Mar 2026":"Upgrade for unlimited AI, alerts & more"}</div>
+                </div>
+              </div>
+              <button className="btn btn-primary btn-sm" style={{fontSize:11,padding:"5px 12px"}}>{user.plan==="pro"?"Manage":"Upgrade"}</button>
+            </div>
+          </div>
+
+          <div className="settings-group">
+            <div className="settings-group-title">Security</div>
+            <div className="settings-row" style={{borderRadius:"12px 12px 0 0"}}>
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#FEF2F2"}}>🔒</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">Change Password</div>
+                </div>
+              </div>
+              <span className="settings-chevron">›</span>
+            </div>
+            <div className="settings-row" style={{borderRadius:"0 0 12px 12px"}}>
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#FEF2F2"}}>🛡️</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">Two-Factor Authentication</div>
+                  <div className="settings-row-desc">Not enabled</div>
+                </div>
+              </div>
+              <span className="settings-chevron">›</span>
+            </div>
+          </div>
+
+          <button className="btn btn-outline btn-block" style={{marginBottom:12}} onClick={logout}>Log out</button>
+          <button className="btn btn-block" style={{
+            background:"none",border:"1px solid #FECACA",color:"#DC2626",
+            borderRadius:12,padding:"12px",fontSize:13,fontWeight:600,cursor:"pointer"
+          }} onClick={()=>setShowDeleteConfirm(!showDeleteConfirm)}>Delete account</button>
+          {showDeleteConfirm && (
+            <div className="card mt-3 fade-in" style={{border:"1px solid #FECACA",padding:16}}>
+              <div className="text-sm font-bold mb-2" style={{color:"#DC2626"}}>Are you sure?</div>
+              <div className="text-xs text-muted mb-3">This will permanently delete your account, saved cars, garage data, and all preferences. This cannot be undone.</div>
+              <div className="flex gap-2">
+                <button className="btn btn-outline flex-1" onClick={()=>setShowDeleteConfirm(false)}>Cancel</button>
+                <button className="btn flex-1" style={{background:"#DC2626",color:"white",border:"none",borderRadius:12,padding:10,fontWeight:600,cursor:"pointer"}} onClick={logout}>Delete permanently</button>
+              </div>
             </div>
           )}
-          <button className="btn btn-outline btn-block btn-sm" style={{marginTop:16,color:"#DC2626",borderColor:"#FECACA"}} onClick={logout}>
-            Log out
-          </button>
-        </div>}
-        {profTab==="prefs" && <div className="card">
-          {["🔔 Push Notifications","📧 Email Alerts","🌙 Dark Mode","📍 Location Services"].map((p,i) =>
-            <div key={i} className="flex justify-between items-center" style={{padding:"12px 0",borderBottom:i<3?"1px solid var(--border-light)":"none"}}>
-              <span className="text-sm">{p}</span><span className="text-sm text-success font-bold">On</span>
+        </>}
+
+        {/* NOTIFICATIONS TAB */}
+        {profTab==="notifications" && <>
+          <div className="settings-group">
+            <div className="settings-group-title">Push Notifications</div>
+            <div className="settings-row" style={{borderRadius:"12px 12px 0 0"}}>
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#EFF6FF"}}>🔔</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">Push Notifications</div>
+                  <div className="settings-row-desc">Alerts on your phone</div>
+                </div>
+              </div>
+              <Toggle on={prefNotifs} onToggle={()=>setPrefNotifs(!prefNotifs)}/>
             </div>
-          )}
-        </div>}
-        {profTab==="about" && <div className="card">
-          <div className="text-md font-bold mb-2">CarGPT v2.0</div>
-          <div className="text-sm text-muted">AI-First Car Marketplace. 450,000+ vehicles. 15,000+ dealers. Powered by Claude AI.</div>
-        </div>}
+            <div className="settings-row">
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#F0FDF4"}}>💰</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">Price Drop Alerts</div>
+                  <div className="settings-row-desc">When saved cars drop in price</div>
+                </div>
+              </div>
+              <Toggle on={prefPriceAlerts} onToggle={()=>setPrefPriceAlerts(!prefPriceAlerts)}/>
+            </div>
+            <div className="settings-row" style={{borderRadius:"0 0 12px 12px"}}>
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#FDF4FF"}}>💬</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">Dealer Messages</div>
+                  <div className="settings-row-desc">When a dealer replies to you</div>
+                </div>
+              </div>
+              <Toggle on={prefDealerMsgs} onToggle={()=>setPrefDealerMsgs(!prefDealerMsgs)}/>
+            </div>
+          </div>
+
+          <div className="settings-group">
+            <div className="settings-group-title">Email Notifications</div>
+            <div className="settings-row" style={{borderRadius:"12px 12px 0 0"}}>
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#EFF6FF"}}>📧</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">Email Alerts</div>
+                  <div className="settings-row-desc">Saved search matches &amp; updates</div>
+                </div>
+              </div>
+              <Toggle on={prefEmails} onToggle={()=>setPrefEmails(!prefEmails)}/>
+            </div>
+            <div className="settings-row" style={{borderRadius:"0 0 12px 12px"}}>
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#EFF6FF"}}>📰</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">Newsletter</div>
+                  <div className="settings-row-desc">Weekly deals, tips &amp; new features</div>
+                </div>
+              </div>
+              <Toggle on={true} onToggle={()=>{}}/>
+            </div>
+          </div>
+
+          <div className="settings-group">
+            <div className="settings-group-title">Garage Reminders</div>
+            <div className="settings-row" style={{borderRadius:"12px 12px 0 0"}}>
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#FEF3C7"}}>📋</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">MOT Reminders</div>
+                  <div className="settings-row-desc">30 days, 14 days, and 7 days before</div>
+                </div>
+              </div>
+              <Toggle on={true} onToggle={()=>{}}/>
+            </div>
+            <div className="settings-row">
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#FEF3C7"}}>💰</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">Tax Reminders</div>
+                  <div className="settings-row-desc">30 days before expiry</div>
+                </div>
+              </div>
+              <Toggle on={true} onToggle={()=>{}}/>
+            </div>
+            <div className="settings-row" style={{borderRadius:"0 0 12px 12px"}}>
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#FEF3C7"}}>🔧</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">Service Reminders</div>
+                  <div className="settings-row-desc">Based on mileage estimate</div>
+                </div>
+              </div>
+              <Toggle on={true} onToggle={()=>{}}/>
+            </div>
+          </div>
+        </>}
+
+        {/* PREFERENCES TAB */}
+        {profTab==="preferences" && <>
+          <div className="settings-group">
+            <div className="settings-group-title">Appearance</div>
+            <div className="settings-row" style={{borderRadius:12}}>
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#1E293B",color:"white",fontSize:14}}>🌙</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">Dark Mode</div>
+                  <div className="settings-row-desc">Reduce eye strain at night</div>
+                </div>
+              </div>
+              <Toggle on={prefDarkMode} onToggle={()=>setPrefDarkMode(!prefDarkMode)}/>
+            </div>
+          </div>
+
+          <div className="settings-group">
+            <div className="settings-group-title">Search Preferences</div>
+            <div className="settings-row" style={{borderRadius:"12px 12px 0 0"}}>
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#EFF6FF"}}>📍</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">Location Services</div>
+                  <div className="settings-row-desc">Show distance to dealers</div>
+                </div>
+              </div>
+              <Toggle on={prefLocation} onToggle={()=>setPrefLocation(!prefLocation)}/>
+            </div>
+            <div className="settings-row">
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#EFF6FF"}}>📏</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">Distance Unit</div>
+                </div>
+              </div>
+              <div className="settings-row-right">
+                <div style={{display:"flex",background:"var(--skeleton)",borderRadius:8,overflow:"hidden"}}>
+                  {["miles","km"].map(u=>(
+                    <button key={u} onClick={()=>setPrefDistUnit(u)} style={{
+                      padding:"5px 14px",border:"none",fontSize:12,fontWeight:600,cursor:"pointer",
+                      background:prefDistUnit===u?"var(--primary)":"transparent",
+                      color:prefDistUnit===u?"white":"var(--text-muted)"
+                    }}>{u==="miles"?"Miles":"Km"}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="settings-row" style={{borderRadius:"0 0 12px 12px"}}>
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#EFF6FF"}}>🔍</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">Default Search Radius</div>
+                </div>
+              </div>
+              <div className="settings-row-right">
+                <select value={prefSearchRadius} onChange={e=>setPrefSearchRadius(e.target.value)} className="filter-select" style={{padding:"5px 28px 5px 10px",fontSize:12}}>
+                  <option value="10">10 miles</option>
+                  <option value="25">25 miles</option>
+                  <option value="50">50 miles</option>
+                  <option value="100">100 miles</option>
+                  <option value="national">National</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="settings-group">
+            <div className="settings-group-title">Data &amp; Privacy</div>
+            <div className="settings-row" style={{borderRadius:"12px 12px 0 0"}}>
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#F0FDF4"}}>📊</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">Analytics &amp; Improvement</div>
+                  <div className="settings-row-desc">Help improve CarGPT with usage data</div>
+                </div>
+              </div>
+              <Toggle on={true} onToggle={()=>{}}/>
+            </div>
+            <div className="settings-row">
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#FEF2F2"}}>🗑️</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">Clear Search History</div>
+                  <div className="settings-row-desc">Remove all recent searches</div>
+                </div>
+              </div>
+              <span className="settings-chevron">›</span>
+            </div>
+            <div className="settings-row" style={{borderRadius:"0 0 12px 12px"}}>
+              <div className="settings-row-left">
+                <div className="settings-row-icon" style={{background:"#FEF2F2"}}>📥</div>
+                <div className="settings-row-text">
+                  <div className="settings-row-label">Download My Data</div>
+                  <div className="settings-row-desc">GDPR data export</div>
+                </div>
+              </div>
+              <span className="settings-chevron">›</span>
+            </div>
+          </div>
+        </>}
+
+        {/* ABOUT TAB */}
+        {profTab==="about" && <>
+          <div className="card mb-4" style={{textAlign:"center",padding:24}}>
+            <div style={{fontSize:32,marginBottom:8}}>🚗</div>
+            <div className="text-lg font-extra mb-1">CarGPT</div>
+            <div className="text-sm text-muted mb-2">Version 2.0.0</div>
+            <div className="text-xs text-muted">AI-First Used Car Marketplace</div>
+          </div>
+
+          <div className="settings-group">
+            <div className="settings-group-title">Platform</div>
+            {[
+              {icon:"📊",label:"450,000+ vehicles",bg:"#EFF6FF"},
+              {icon:"🏪",label:"15,000+ dealers nationwide",bg:"#F0FDF4"},
+              {icon:"🤖",label:"Powered by Claude AI",bg:"#FDF4FF"},
+              {icon:"🔒",label:"Bank-level encryption",bg:"#FEF2F2"},
+            ].map((r,i) => (
+              <div key={i} className="settings-row" style={{borderRadius:i===0?"12px 12px 0 0":i===3?"0 0 12px 12px":"0",cursor:"default"}}>
+                <div className="settings-row-left">
+                  <div className="settings-row-icon" style={{background:r.bg}}>{r.icon}</div>
+                  <div className="settings-row-label">{r.label}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="settings-group">
+            <div className="settings-group-title">Legal</div>
+            {["Terms of Service","Privacy Policy","Cookie Policy","Complaints Procedure"].map((l,i,a) => (
+              <div key={i} className="settings-row" style={{borderRadius:i===0?"12px 12px 0 0":i===a.length-1?"0 0 12px 12px":"0"}}>
+                <div className="settings-row-left">
+                  <div className="settings-row-icon" style={{background:"var(--skeleton)"}}>📄</div>
+                  <div className="settings-row-label">{l}</div>
+                </div>
+                <span className="settings-chevron">›</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="settings-group">
+            <div className="settings-group-title">Support</div>
+            {[
+              {icon:"💬",label:"Help Centre",bg:"#EFF6FF"},
+              {icon:"📧",label:"Contact Support",bg:"#FDF4FF"},
+              {icon:"⭐",label:"Rate CarGPT",bg:"#FEF3C7"},
+            ].map((r,i,a) => (
+              <div key={i} className="settings-row" style={{borderRadius:i===0?"12px 12px 0 0":i===a.length-1?"0 0 12px 12px":"0"}}>
+                <div className="settings-row-left">
+                  <div className="settings-row-icon" style={{background:r.bg}}>{r.icon}</div>
+                  <div className="settings-row-label">{r.label}</div>
+                </div>
+                <span className="settings-chevron">›</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="text-center text-xs text-muted" style={{padding:16}}>
+            © 2026 CarGPT Holdings Limited. All rights reserved.
+          </div>
+        </>}
       </div>
     );
   };
@@ -2686,86 +3952,207 @@ THE VEHICLE:
   const DetailPage = () => {
     if(!sel) return null;
     const v=sel, dl=D.find(d=>d.id===v.dealerId)||D[0], fin=calcFin(v.price);
+    const isFav = favs.includes(v.id);
+    const angles = [1,5,9,13,17,21,25,29];
+    const angleIdx = angles.indexOf(galleryAngle);
+
+    // Compare vehicle — pick best alternative
+    const altCar = V.filter(x=>x.id!==v.id).sort((a,b)=>Math.abs(a.price-v.price)-Math.abs(b.price-v.price))[0];
+
+    const CompareRow = ({label, val1, val2, better}) => (
+      <tr>
+        <td className="text-muted">{label}</td>
+        <td className={better==="a"?"compare-highlight":""}>{val1}</td>
+        <td className={better==="b"?"compare-highlight":""}>{val2}</td>
+      </tr>
+    );
+
     return (
-      <div style={{paddingBottom:80}}>
-        <div style={{padding:"16px 0"}}>
-          <button className="btn btn-secondary btn-sm" onClick={()=>setSel(null)}>← Back to results</button>
+      <div style={{paddingBottom:0}}>
+        {/* Back nav */}
+        <div style={{padding:"12px 0 8px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <button className="btn btn-secondary btn-sm" onClick={()=>setSel(null)} style={{fontSize:13}}>← Back</button>
+          <div className="text-xs text-muted">Listed {v.daysListed} day{v.daysListed!==1?"s":""} ago · {v.location}</div>
         </div>
+
         <div className="detail-layout">
-          {/* Left column */}
+          {/* ─── LEFT COLUMN ─── */}
           <div>
+            {/* Gallery */}
             <div className="detail-hero-img mb-2"
               onTouchStart={e=>{ touchStartX.current = e.touches[0].clientX; }}
               onTouchEnd={e=>{ if(touchStartX.current===null) return; const diff = touchStartX.current - e.changedTouches[0].clientX; if(Math.abs(diff)>50){ handleGallerySwipe(diff>0?"left":"right"); } touchStartX.current=null; }}
-            ><img src={carImg(v.make, v.model, v.year, galleryAngle)} alt={`${v.year} ${v.make} ${v.model}`}/>
-              {/* Mobile swipe dots */}
+            >
+              <img src={carImg(v.make, v.model, v.year, galleryAngle)} alt={`${v.year} ${v.make} ${v.model}`}/>
+              <div className="detail-hero-badge">
+                <span className={`badge ${v.priceRating.includes("Great")?"badge-green":"badge-green"}`}>{v.priceRating}</span>
+                {v.ulezCompliant && <span className="badge badge-blue">ULEZ ✓</span>}
+              </div>
+              <button className="detail-hero-fav" onClick={()=>toggleFav(v.id)}>
+                {isFav ? "❤️" : "🤍"}
+              </button>
+              <div className="detail-hero-counter">{angleIdx+1} / {angles.length}</div>
               <div className="gallery-dots">
-                {galleryAngles.map(a=><span key={a} className={`gallery-dot${galleryAngle===a?" active":""}`}/>)}
+                {angles.map(a=><span key={a} className={`gallery-dot${galleryAngle===a?" active":""}`}/>)}
               </div>
             </div>
-            <div className="gallery-thumbs-row" style={{display:"flex",gap:8,marginBottom:16,overflowX:"auto",paddingBottom:4}}>
-              {[1,5,9,13,17,21,25,29].map(a=>(
-                <div key={a} onClick={()=>setGalleryAngle(a)} style={{
-                  width:80,height:52,borderRadius:8,overflow:"hidden",cursor:"pointer",flexShrink:0,
-                  border:galleryAngle===a?"2px solid var(--primary)":"2px solid transparent",
-                  background:"#F3F4F6",opacity:galleryAngle===a?1:0.7,transition:"all 0.2s"
-                }}>
-                  <img src={carImg(v.make,v.model,v.year,a)} alt={`angle ${a}`} style={{width:"100%",height:"100%",objectFit:"cover"}} loading="lazy"/>
+
+            {/* Thumbnail strip */}
+            <div className="gallery-strip">
+              {angles.map(a=>(
+                <div key={a} className={`gallery-thumb${galleryAngle===a?" active":""}`} onClick={()=>setGalleryAngle(a)}>
+                  <img src={carImg(v.make,v.model,v.year,a)} alt={`angle ${a}`} loading="lazy"/>
                 </div>
               ))}
             </div>
 
+            {/* Title + key info */}
+            <div style={{padding:"16px 0 12px"}}>
+              <div style={{fontSize:24,fontWeight:800,lineHeight:1.2,marginBottom:4}}>{v.year} {v.make} {v.model}</div>
+              <div className="text-sm text-muted">{v.variant} · {v.vrm}</div>
+            </div>
+
+            {/* Spec Grid — Auto Trader style */}
+            <div className="specs-grid">
+              {[
+                {icon:"🛣️",val:fmtMi(v.mileage),label:"Mileage"},
+                {icon:"⛽",val:v.fuel,label:"Fuel"},
+                {icon:"⚙️",val:v.transmission,label:"Gearbox"},
+                {icon:"🏎️",val:v.specs.bhp+"bhp",label:"Power"},
+                {icon:"🔧",val:v.engineSize,label:"Engine"},
+                {icon:"⏱️",val:v.specs.acceleration+"s",label:"0-62"},
+                {icon:"📦",val:v.specs.bootSpace+"L",label:"Boot"},
+                {icon:v.fuel==="Electric"?"🔋":"⛽",val:typeof v.specs.fuelEconomy==="number"?v.specs.fuelEconomy+" mpg":v.specs.fuelEconomy,label:v.fuel==="Electric"?"Range":"Economy"},
+              ].map((s,i)=>(
+                <div key={i} className="spec-cell">
+                  <div className="spec-icon">{s.icon}</div>
+                  <div className="spec-val">{s.val}</div>
+                  <div className="spec-label">{s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Tabs */}
             <div className="tabs mb-4">
-              {["details","mot","reviews","ai"].map(t =>
-                <button key={t} className={`tab-btn ${detailTab===t?"active":""}`} onClick={()=>setDetailTab(t)}>
-                  {t==="details"?"Details & Specs":t==="mot"?"MOT History":t==="reviews"?"Reviews":"Ask AI"}
+              {["details","mot","compare","reviews","ai"].map(t =>
+                <button key={t} className={`tab-btn ${detailTab===t?"active":""}`} onClick={()=>setDetailTab(t)} style={{fontSize:12,padding:"8px 12px"}}>
+                  {{details:"Trust & Features",mot:"MOT History",compare:"Compare",reviews:"Reviews",ai:"Ask AI"}[t]}
                 </button>
               )}
             </div>
 
+            {/* TRUST & FEATURES TAB */}
             {detailTab==="details" && <>
-              <div className="info-grid mb-4">
-                {[{l:"Engine",v:v.engineSize},{l:"Power",v:v.specs.bhp+"bhp"},{l:"0-62 mph",v:v.specs.acceleration+"s"},{l:"Economy",v:v.specs.fuelEconomy+(typeof v.specs.fuelEconomy==="number"?" mpg":"")},{l:"Boot Space",v:v.specs.bootSpace+"L"},{l:"Fuel",v:v.fuel},{l:"Gearbox",v:v.transmission},{l:"Colour",v:v.colour}].map((s,i) =>
-                  <div key={i} className="info-cell"><div className="info-val">{s.v}</div><div className="info-label">{s.l}</div></div>
-                )}
-              </div>
-
-              <div className="label-sm">Trust & Checks</div>
               <div className="card mb-4">
-                {[{icon:v.hpiClear?"✅":"⏳",label:"HPI Check",val:v.hpiClear?"Clear":"Pending"},{icon:"📋",label:"MOT",val:`Until ${v.motExpiry}`},{icon:"🔧",label:"Service History",val:v.serviceHistory?"Full":"Partial"},{icon:"👤",label:"Previous Keepers",val:`${v.previousKeepers}`},{icon:"🌍",label:"ULEZ",val:v.ulezCompliant?"Compliant":"Not compliant"},{icon:"🛡️",label:"Insurance Group",val:`${v.insuranceGroup}/50`},{icon:"💰",label:"Road Tax",val:v.taxCost===0?"FREE":`£${v.taxCost}/yr`}].map((c,i) =>
-                  <div key={i} className="flex justify-between items-center" style={{padding:"10px 0",borderBottom:i<6?"1px solid var(--border-light)":"none"}}>
-                    <span className="text-sm">{c.icon} {c.label}</span><span className="text-sm font-bold">{c.val}</span>
+                <div className="text-sm font-bold mb-3">Checks & History</div>
+                {[
+                  {icon:v.hpiClear?"✅":"⏳",label:"HPI Check",val:v.hpiClear?"Clear — no issues found":"Pending",col:v.hpiClear?"var(--success)":"var(--text)"},
+                  {icon:"📋",label:"MOT Valid",val:`Until ${v.motExpiry}`,col:"var(--text)"},
+                  {icon:"🔧",label:"Service History",val:v.serviceHistory?"Full service history":"Partial",col:v.serviceHistory?"var(--success)":"var(--warning)"},
+                  {icon:"👤",label:"Previous Keepers",val:v.previousKeepers===1?"1 owner":""+v.previousKeepers,col:v.previousKeepers<=2?"var(--success)":"var(--text)"},
+                  {icon:"🌍",label:"ULEZ",val:v.ulezCompliant?"Compliant":"Not compliant",col:v.ulezCompliant?"var(--success)":"var(--error)"},
+                  {icon:"🛡️",label:"Insurance Group",val:`${v.insuranceGroup} of 50`,col:v.insuranceGroup<=15?"var(--success)":v.insuranceGroup<=25?"var(--warning)":"var(--error)"},
+                  {icon:"💰",label:"Road Tax",val:v.taxCost===0?"FREE":"£"+v.taxCost+"/yr",col:v.taxCost===0?"var(--success)":"var(--text)"},
+                  {icon:"🏭",label:"Emissions",val:v.euroEmissions+" · "+v.co2+"g/km CO₂",col:"var(--text)"},
+                ].map((c,i) =>
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 0",borderBottom:i<7?"1px solid var(--border-light)":"none"}}>
+                    <span className="text-sm">{c.icon} {c.label}</span>
+                    <span className="text-sm font-bold" style={{color:c.col}}>{c.val}</span>
                   </div>
                 )}
               </div>
 
-              <div className="label-sm">Features</div>
-              <div className="flex gap-2 flex-wrap mb-4">
-                {v.features.map((f,i) => <span key={i} className="badge badge-blue">{f}</span>)}
+              <div className="card mb-4">
+                <div className="text-sm font-bold mb-3">Standard Features</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                  {v.features.map((f,i) => (
+                    <span key={i} style={{
+                      display:"inline-flex",alignItems:"center",gap:5,
+                      padding:"7px 14px",borderRadius:10,fontSize:12,fontWeight:600,
+                      background:"var(--skeleton)",color:"var(--text-secondary)"
+                    }}>✓ {f}</span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Vehicle summary */}
+              <div className="card mb-4" style={{
+                background:"linear-gradient(135deg,#F8FAFC,#EEF2FF)",
+                border:"1px solid #E0E7FF"
+              }}>
+                <div className="text-sm font-bold mb-2">📝 Quick Summary</div>
+                <div className="text-sm" style={{lineHeight:1.6,color:"var(--text-secondary)"}}>
+                  This {v.year} {v.make} {v.model} {v.variant} has covered {fmtMi(v.mileage)} and comes with{" "}
+                  {v.serviceHistory?"full service history":"partial service history"}, {v.hpiClear?"a clear HPI check":"an HPI check pending"},{" "}
+                  and is in insurance group {v.insuranceGroup}.{" "}
+                  {v.ulezCompliant?"It's ULEZ compliant for London driving. ":""}
+                  {v.taxCost===0?"Road tax is FREE. ":`Road tax is £${v.taxCost}/year. `}
+                  At {fmt(v.price)}, it's rated as a "{v.priceRating}" by our AI.
+                </div>
               </div>
             </>}
 
+            {/* MOT TAB */}
             {detailTab==="mot" && <div>
-              <div className="label-sm">MOT History</div>
-              {(v.mot||[]).map((m,i) =>
-                <div key={i} className="card mb-3 fade-in">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-bold">{m.date}</span>
-                    <span className={`badge ${m.result==="Pass"?"badge-green":"badge-red"}`}>{m.result==="Pass"?"✅ Pass":"❌ Fail"}</span>
-                  </div>
-                  <div className="text-xs text-muted">Mileage: {m.mileage?.toLocaleString()}</div>
-                  {m.advisories?.length>0 && m.advisories.map((a,j) =>
-                    <div key={j} className="mt-2" style={{padding:10,background:a.includes("major")?"var(--error-light)":"var(--warning-light)",borderRadius:8}}>
-                      <div className="text-sm font-bold">{a.includes("major")?"❌":"⚠️"} {a.split("(")[0].trim()}</div>
-                      <div className="text-xs text-muted mt-1">{a.includes("minor")?"Minor — keep an eye on it.":a.includes("major")?"Major — needs fixing.":"Advisory — worth monitoring."}</div>
+              <div className="text-sm font-bold mb-3">MOT History — {(v.mot||[]).length} records</div>
+              <div className="timeline" style={{paddingLeft:28}}>
+                {(v.mot||[]).map((m,i) => (
+                  <div key={i} className="timeline-item">
+                    <div className={`timeline-dot ${m.result==="Pass"?"green":"red"}`}/>
+                    <div className="card mb-2" style={{padding:14}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                        <span className="text-sm font-bold">{m.date}</span>
+                        <span className={`badge ${m.result==="Pass"?"badge-green":"badge-red"}`}>{m.result==="Pass"?"✅ Pass":"❌ Fail"}</span>
+                      </div>
+                      <div className="text-xs text-muted mb-2">Mileage: {m.mileage?.toLocaleString()} miles</div>
+                      {m.advisories?.length>0 && m.advisories.map((a,j) =>
+                        <div key={j} style={{padding:"8px 10px",marginTop:6,background:a.includes("major")?"#FEF2F2":"#FFFBEB",borderRadius:8,border:a.includes("major")?"1px solid #FECACA":"1px solid #FDE68A"}}>
+                          <div className="text-xs font-bold">{a.includes("major")?"❌":"⚠️"} {a.split("(")[0].trim()}</div>
+                          <div className="text-xs text-muted" style={{marginTop:2}}>{a.includes("minor")?"Minor advisory":"Major — requires repair"}</div>
+                        </div>
+                      )}
+                      {(!m.advisories||m.advisories.length===0) && <div className="text-xs" style={{color:"var(--success)"}}>✅ No advisories</div>}
                     </div>
-                  )}
-                </div>
-              )}
+                  </div>
+                ))}
+              </div>
             </div>}
 
+            {/* COMPARE TAB */}
+            {detailTab==="compare" && altCar && <div>
+              <div className="text-sm font-bold mb-3">Compare with similar cars</div>
+              <div className="card mb-4" style={{overflowX:"auto",padding:0}}>
+                <table className="compare-table">
+                  <thead>
+                    <tr>
+                      <th style={{width:"30%"}}></th>
+                      <th style={{width:"35%"}}>{v.year} {v.make} {v.model}</th>
+                      <th style={{width:"35%"}}>{altCar.year} {altCar.make} {altCar.model}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <CompareRow label="Price" val1={fmt(v.price)} val2={fmt(altCar.price)} better={v.price<altCar.price?"a":"b"}/>
+                    <CompareRow label="Mileage" val1={fmtMi(v.mileage)} val2={fmtMi(altCar.mileage)} better={v.mileage<altCar.mileage?"a":"b"}/>
+                    <CompareRow label="Year" val1={""+v.year} val2={""+altCar.year} better={v.year>altCar.year?"a":"b"}/>
+                    <CompareRow label="Fuel" val1={v.fuel} val2={altCar.fuel}/>
+                    <CompareRow label="Power" val1={v.specs.bhp+"bhp"} val2={altCar.specs.bhp+"bhp"} better={v.specs.bhp>altCar.specs.bhp?"a":"b"}/>
+                    <CompareRow label="0-62mph" val1={v.specs.acceleration+"s"} val2={altCar.specs.acceleration+"s"} better={v.specs.acceleration<altCar.specs.acceleration?"a":"b"}/>
+                    <CompareRow label="Economy" val1={typeof v.specs.fuelEconomy==="number"?v.specs.fuelEconomy+" mpg":""+v.specs.fuelEconomy} val2={typeof altCar.specs.fuelEconomy==="number"?altCar.specs.fuelEconomy+" mpg":""+altCar.specs.fuelEconomy} better={typeof v.specs.fuelEconomy==="number"&&typeof altCar.specs.fuelEconomy==="number"?(v.specs.fuelEconomy>altCar.specs.fuelEconomy?"a":"b"):undefined}/>
+                    <CompareRow label="Boot" val1={v.specs.bootSpace+"L"} val2={altCar.specs.bootSpace+"L"} better={v.specs.bootSpace>altCar.specs.bootSpace?"a":"b"}/>
+                    <CompareRow label="Insurance" val1={"Group "+v.insuranceGroup} val2={"Group "+altCar.insuranceGroup} better={v.insuranceGroup<altCar.insuranceGroup?"a":"b"}/>
+                    <CompareRow label="Road Tax" val1={v.taxCost===0?"FREE":"£"+v.taxCost+"/yr"} val2={altCar.taxCost===0?"FREE":"£"+altCar.taxCost+"/yr"} better={v.taxCost<altCar.taxCost?"a":"b"}/>
+                    <CompareRow label="Rating" val1={v.priceRating} val2={altCar.priceRating}/>
+                  </tbody>
+                </table>
+              </div>
+              <div className="text-xs text-muted mb-3">Green cells show the better value. Tap a car to view it.</div>
+              <button className="btn btn-outline btn-block btn-sm" onClick={()=>{setSel(altCar);setGalleryAngle(1);setDetailTab("details");window.scrollTo(0,0);}}>
+                View {altCar.year} {altCar.make} {altCar.model} →
+              </button>
+            </div>}
+
+            {/* REVIEWS TAB */}
             {detailTab==="reviews" && <div>
-              {/* Dealer rating summary */}
               <div className="card mb-4" style={{background:"linear-gradient(135deg,#F8F9FA,#EEF2FF)"}}>
                 <div style={{display:"flex",gap:20,alignItems:"center"}}>
                   <div style={{textAlign:"center"}}>
@@ -2780,7 +4167,7 @@ THE VEHICLE:
                       <div key={r.s} style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
                         <span style={{fontSize:11,width:8}}>{r.s}</span>
                         <span style={{fontSize:10}}>★</span>
-                        <div style={{flex:1,height:6,background:"#E5E7EB",borderRadius:3,overflow:"hidden"}}>
+                        <div style={{flex:1,height:6,background:"var(--border)",borderRadius:3,overflow:"hidden"}}>
                           <div style={{width:`${r.p}%`,height:"100%",background:r.s>=4?"#FBBF24":r.s===3?"#F59E0B":"#EF4444",borderRadius:3}}/>
                         </div>
                         <span style={{fontSize:10,color:"var(--text-muted)",width:28,textAlign:"right"}}>{r.p}%</span>
@@ -2789,14 +4176,10 @@ THE VEHICLE:
                   </div>
                 </div>
               </div>
-
-              {/* Write review button */}
               <button className="btn btn-outline btn-block btn-sm mb-4" onClick={()=>{
                 if(!user){setAuthModal("login");return;}
                 setReviewModal(true);setReviewStars(0);setReviewText("");setReviewSubmitted(false);
               }}>✍️ Write a Review</button>
-
-              {/* Review list */}
               {reviews.filter(r=>r.dealerId===dl.id).map(r=>(
                 <div key={r.id} className="card mb-3 fade-in">
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"start",marginBottom:8}}>
@@ -2806,7 +4189,7 @@ THE VEHICLE:
                         <div>
                           <div className="text-sm font-bold" style={{display:"flex",alignItems:"center",gap:4}}>
                             {r.author}
-                            {r.verified && <span style={{background:"#E8F5E9",color:"#2E7D32",fontSize:9,padding:"1px 5px",borderRadius:4,fontWeight:700}}>✓ Verified Buyer</span>}
+                            {r.verified && <span style={{background:"#E8F5E9",color:"#2E7D32",fontSize:9,padding:"1px 5px",borderRadius:4,fontWeight:700}}>✓ Verified</span>}
                           </div>
                           <div style={{display:"flex",gap:2}}>{[1,2,3,4,5].map(s=><span key={s} style={{fontSize:12,color:s<=r.rating?"#FBBF24":"#D1D5DB"}}>★</span>)}</div>
                         </div>
@@ -2819,6 +4202,7 @@ THE VEHICLE:
               ))}
             </div>}
 
+            {/* AI TAB */}
             {detailTab==="ai" && <div>
               <div className="text-sm text-muted mb-3">Ask anything about this {v.make} {v.model}</div>
               <div className="flex gap-2 flex-wrap mb-4">
@@ -2844,60 +4228,76 @@ THE VEHICLE:
             </div>}
           </div>
 
-          {/* Right sidebar */}
+          {/* ─── RIGHT SIDEBAR ─── */}
           <div className="detail-sidebar">
             <div className="detail-price-card">
               <div className="detail-price">{fmt(v.price)}</div>
-              <div className="flex gap-2 items-center mb-3">
+              <div className="detail-price-sub">
+                or from <strong>£{fin.monthly}/mo</strong> PCP · {fmtMi(v.mileage)} · {v.year}
+              </div>
+              <div style={{display:"flex",gap:6,marginBottom:16}}>
                 <span className={`badge ${v.priceRating.includes("Great")?"badge-green":"badge-green"}`}>{v.priceRating}</span>
-                <span className="text-xs text-muted">{fmtMi(v.mileage)} · {v.year} · {v.location}</span>
+                <span className="badge badge-blue">📍 {v.location}</span>
               </div>
               <div className="detail-actions-grid">
                 <button className="btn btn-primary" onClick={()=>openDChat(v.id)}>💬 Message</button>
                 <button className="btn btn-outline" onClick={()=>openDChat(v.id,"testDrive")}>📅 Test Drive</button>
-                <button className="btn btn-outline" onClick={()=>{setHpiReg(v.vrm);setHpiResult(null);setHpiPremium(false);openModal("hpi");}}>🔎 Check</button>
+                <button className="btn btn-outline" onClick={()=>{setHpiReg(v.vrm);setHpiResult(null);setHpiPremium(false);openModal("hpi");}}>🔎 HPI Check</button>
                 <button className="btn btn-outline" onClick={()=>openModal("finance")}>💳 Finance</button>
               </div>
             </div>
 
             <div className="card">
-              <div className="label-sm">Finance Estimate</div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm">PCP from</span>
-                <span className="text-lg font-extra text-primary">£{fin.monthly}/mo</span>
+              <div className="text-sm font-bold mb-2">Finance Estimate</div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--border-light)"}}>
+                <span className="text-sm">PCP</span>
+                <span className="text-lg font-extra" style={{color:"var(--primary)"}}>£{fin.monthly}/mo</span>
               </div>
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-sm">HP from</span>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",marginBottom:10}}>
+                <span className="text-sm">HP</span>
                 <span className="text-md font-bold">£{Math.round(fin.monthly*1.15)}/mo</span>
               </div>
-              <button className="btn btn-secondary btn-block btn-sm" onClick={()=>openModal("finance")}>Full Finance Calculator</button>
+              <div className="text-xs text-muted mb-3">Based on £{Math.round(v.price*0.1).toLocaleString()} deposit, 48 months, 6.9% APR representative</div>
+              <button className="btn btn-secondary btn-block btn-sm" onClick={()=>openModal("finance")}>Full calculator →</button>
             </div>
 
             <div className="card">
-              <div className="label-sm">Dealer</div>
-              <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:8}}>
+              <div className="text-sm font-bold mb-3">Dealer</div>
+              <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:10}}>
                 <div style={{width:44,height:44,borderRadius:10,background:"linear-gradient(135deg,var(--primary),#1a5cd6)",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontWeight:700,fontSize:16}}>{dl.name.charAt(0)}</div>
                 <div>
-                  <div className="text-md font-bold" style={{display:"flex",alignItems:"center",gap:4}}>{dl.name} <span style={{background:"#E8F5E9",color:"#2E7D32",fontSize:10,padding:"1px 6px",borderRadius:4,fontWeight:700}}>✓ Verified</span></div>
-                  <div className="text-xs text-muted">⭐ {dl.rating} ({dl.reviews} reviews) · 📍 {dl.location}</div>
+                  <div className="text-sm font-bold" style={{display:"flex",alignItems:"center",gap:4}}>{dl.name} <span style={{background:"#E8F5E9",color:"#2E7D32",fontSize:9,padding:"1px 5px",borderRadius:4,fontWeight:700}}>✓</span></div>
+                  <div className="text-xs text-muted">⭐ {dl.rating} ({dl.reviews}) · 📍 {dl.location}</div>
                 </div>
               </div>
               <div style={{display:"flex",gap:8,marginBottom:12}}>
-                <div style={{flex:1,background:"#F8F9FA",borderRadius:8,padding:"8px 10px",textAlign:"center"}}><div style={{fontSize:11,color:"var(--text-muted)"}}>Trust Score</div><div style={{fontWeight:700,color:dl.trustScore>=90?"#2E7D32":"var(--text-primary)"}}>{dl.trustScore}/100</div></div>
-                <div style={{flex:1,background:"#F8F9FA",borderRadius:8,padding:"8px 10px",textAlign:"center"}}><div style={{fontSize:11,color:"var(--text-muted)"}}>Response</div><div style={{fontWeight:700}}>{dl.responseTime}</div></div>
+                <div style={{flex:1,background:"var(--badge-muted-bg)",borderRadius:8,padding:"8px 10px",textAlign:"center"}}><div style={{fontSize:10,color:"var(--text-muted)"}}>Trust</div><div style={{fontWeight:700,fontSize:14,color:dl.trustScore>=90?"#2E7D32":"var(--text)"}}>{dl.trustScore}/100</div></div>
+                <div style={{flex:1,background:"var(--badge-muted-bg)",borderRadius:8,padding:"8px 10px",textAlign:"center"}}><div style={{fontSize:10,color:"var(--text-muted)"}}>Response</div><div style={{fontWeight:700,fontSize:14}}>{dl.responseTime}</div></div>
+                <div style={{flex:1,background:"var(--badge-muted-bg)",borderRadius:8,padding:"8px 10px",textAlign:"center"}}><div style={{fontSize:10,color:"var(--text-muted)"}}>Stock</div><div style={{fontWeight:700,fontSize:14}}>{V.filter(x=>x.dealerId===dl.id).length}</div></div>
               </div>
               <button className="btn btn-primary btn-block btn-sm" onClick={()=>openDChat(v.id)}>Message Dealer</button>
             </div>
 
             <div className="card">
-              <div className="label-sm">More Actions</div>
+              <div className="text-sm font-bold mb-2">More Actions</div>
               <div className="flex flex-col gap-2">
                 <button className="btn btn-outline btn-sm btn-block" onClick={()=>{setPexResult(null);openModal("partex");}}>🔄 Part Exchange</button>
-                <button className="btn btn-outline btn-sm btn-block" onClick={()=>{setCompCars([v,V.find(x=>x.id!==v.id)||V[1]]);openModal("compare");}}>⚖️ Compare</button>
+                <button className="btn btn-outline btn-sm btn-block" onClick={()=>setDetailTab("compare")}>⚖️ Compare Cars</button>
                 <button className="btn btn-outline btn-sm btn-block" onClick={()=>openModal("negotiate")}>🤝 Negotiation Coach</button>
+                <button className="btn btn-outline btn-sm btn-block" onClick={()=>sendChat(`Tell me about the ${v.year} ${v.make} ${v.model}. Is it worth it?`)}>🤖 AI Deep Analysis</button>
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Sticky bottom CTA — mobile & desktop */}
+        <div className="detail-sticky-cta">
+          <div style={{flex:1}}>
+            <div className="detail-sticky-price">{fmt(v.price)}</div>
+            <div className="detail-sticky-sub">£{fin.monthly}/mo PCP · {v.priceRating}</div>
+          </div>
+          <button className="btn btn-outline" style={{flexShrink:0}} onClick={()=>openDChat(v.id,"testDrive")}>📅 Test Drive</button>
+          <button className="btn btn-primary" style={{flexShrink:0}} onClick={()=>openDChat(v.id)}>💬 Message</button>
         </div>
       </div>
     );
@@ -3063,7 +4463,7 @@ THE VEHICLE:
       case "compare":
         return <SlideOver show={true} onClose={closeModal} title="⚖️ Compare Cars">
           <div className="flex gap-2 mb-4">{compCars.map((c,i)=><select key={i} className="input" value={c.id} onChange={e=>{const nc=[...compCars];nc[i]=V.find(v=>v.id===+e.target.value)||V[0];setCompCars(nc);}} style={{flex:1}}>{V.map(v=><option key={v.id} value={v.id}>{v.make} {v.model}</option>)}</select>)}</div>
-          <div className="flex gap-2 mb-4">{compCars.map((c,i)=><div key={i} style={{flex:1,textAlign:"center"}}><div style={{width:"100%",height:80,borderRadius:8,overflow:"hidden",background:"#F3F4F6",marginBottom:4}}><img src={carImg(c.make,c.model,c.year)} alt={c.make} style={{width:"100%",height:"100%",objectFit:"cover"}}/></div><div className="text-xs font-bold">{c.make} {c.model}</div></div>)}</div>
+          <div className="flex gap-2 mb-4">{compCars.map((c,i)=><div key={i} style={{flex:1,textAlign:"center"}}><div style={{width:"100%",height:80,borderRadius:8,overflow:"hidden",background:"var(--skeleton)",marginBottom:4}}><img src={carImg(c.make,c.model,c.year)} alt={c.make} style={{width:"100%",height:"100%",objectFit:"cover"}}/></div><div className="text-xs font-bold">{c.make} {c.model}</div></div>)}</div>
           {[{l:"Price",k:v=>fmt(v.price)},{l:"Year",k:v=>""+v.year},{l:"Mileage",k:v=>fmtMi(v.mileage)},{l:"Fuel",k:v=>v.fuel},{l:"Power",k:v=>v.specs.bhp+"bhp"},{l:"0-62",k:v=>v.specs.acceleration+"s"},{l:"Economy",k:v=>v.specs.fuelEconomy+(typeof v.specs.fuelEconomy==="number"?" mpg":"")},{l:"Boot",k:v=>v.specs.bootSpace+"L"},{l:"Insurance",k:v=>"Grp "+v.insuranceGroup},{l:"Tax",k:v=>v.taxCost===0?"FREE":"£"+v.taxCost+"/yr"},{l:"ULEZ",k:v=>v.ulezCompliant?"✅":"❌"},{l:"Rating",k:v=>v.priceRating}].map((r,i)=><div key={i} className="flex" style={{borderBottom:"1px solid var(--border-light)",padding:"10px 0"}}><div className="text-xs text-muted" style={{width:80,flexShrink:0}}>{r.l}</div>{compCars.map((c,j)=><div key={j} className="text-sm font-bold" style={{flex:1,textAlign:"center"}}>{r.k(c)}</div>)}</div>)}
           <div className="flex gap-2 mt-4">{compCars.map((c,i)=><button key={i} className="btn btn-primary flex-1" onClick={()=>{setSel(c);closeModal();}}>View {c.make}</button>)}</div>
         </SlideOver>;
@@ -3364,8 +4764,8 @@ THE VEHICLE:
             <>
               {/* Vehicle context bar */}
               {dCtx?.vehicle && (
-                <div style={{display:"flex",gap:10,padding:"10px 12px",background:"#F8F9FA",borderRadius:10,marginBottom:12,alignItems:"center"}}>
-                  <div style={{width:48,height:36,borderRadius:6,overflow:"hidden",background:"#E5E7EB",flexShrink:0}}>
+                <div style={{display:"flex",gap:10,padding:"10px 12px",background:"var(--badge-muted-bg)",borderRadius:10,marginBottom:12,alignItems:"center"}}>
+                  <div style={{width:48,height:36,borderRadius:6,overflow:"hidden",background:"var(--border)",flexShrink:0}}>
                     <img src={carImg(dCtx.vehicle.make,dCtx.vehicle.model,dCtx.vehicle.year)} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
                   </div>
                   <div style={{flex:1,minWidth:0}}>
@@ -3491,7 +4891,7 @@ THE VEHICLE:
 
   // ═══ MAIN RENDER ═══
   return (
-    <>
+    <div className={prefDarkMode?"dark":""} style={{minHeight:"100vh",background:"var(--bg)",color:"var(--text)"}}>
       <style>{css}</style>
       {Navbar()}
       <div className="app-layout">
@@ -3526,7 +4926,7 @@ THE VEHICLE:
               <div className="chat-bubble">{m.text}</div>
               {m.vehicles && <div className="chat-cars">{m.vehicles.map(v =>
                 <div key={v.id} className="chat-car-card" onClick={()=>{setSel(v);setChatOpen(false);}}>
-                  <div style={{width:48,height:36,borderRadius:6,overflow:"hidden",background:"#F3F4F6",marginBottom:4}}><img src={carImg(v.make,v.model,v.year)} alt={v.make} style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
+                  <div style={{width:48,height:36,borderRadius:6,overflow:"hidden",background:"var(--skeleton)",marginBottom:4}}><img src={carImg(v.make,v.model,v.year)} alt={v.make} style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
                   <div className="text-xs font-bold">{v.year} {v.make} {v.model}</div>
                   <div className="text-sm font-extra text-primary">{fmt(v.price)}</div>
                   <div className="text-xs text-muted">{fmtMi(v.mileage)} · {v.fuel}</div>
@@ -3583,7 +4983,7 @@ THE VEHICLE:
       {authModal && (
         <div className="modal-overlay" style={{zIndex:10000}} onClick={()=>{setAuthModal(null);setAuthError("");setAEmail("");setAPass("");setAName("");}}>
           <div style={{
-            background:"white",borderRadius:20,width:"100%",maxWidth:440,padding:0,
+            background:"var(--surface)",borderRadius:20,width:"100%",maxWidth:440,padding:0,
             boxShadow:"0 25px 60px rgba(0,0,0,0.3)",overflow:"hidden",animation:"slideUp 0.3s ease"
           }} onClick={e=>e.stopPropagation()}>
             {/* Header */}
@@ -3603,7 +5003,7 @@ THE VEHICLE:
               {/* Social OAuth Buttons */}
               <button onClick={googleLogin} style={{
                 width:"100%",padding:"12px",borderRadius:12,border:"1.5px solid var(--border-light)",
-                background:"white",fontSize:14,fontWeight:600,cursor:"pointer",display:"flex",
+                background:"var(--surface)",fontSize:14,fontWeight:600,cursor:"pointer",display:"flex",
                 alignItems:"center",justifyContent:"center",gap:10,marginBottom:10,transition:"all 0.2s"
               }}
                 onMouseEnter={e=>e.currentTarget.style.background="#F9FAFB"}
@@ -3718,7 +5118,7 @@ THE VEHICLE:
       {/* Review Modal */}
       {reviewModal && (
         <div className="modal-overlay" style={{zIndex:10000}} onClick={()=>setReviewModal(false)}>
-          <div style={{background:"white",borderRadius:20,width:"100%",maxWidth:480,padding:32,boxShadow:"0 25px 60px rgba(0,0,0,0.3)",animation:"slideUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
+          <div style={{background:"var(--surface)",borderRadius:20,width:"100%",maxWidth:480,padding:32,boxShadow:"0 25px 60px rgba(0,0,0,0.3)",animation:"slideUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
             {reviewSubmitted ? (
               <div className="text-center fade-in">
                 <div style={{fontSize:48,marginBottom:12}}>🎉</div>
@@ -3762,6 +5162,235 @@ THE VEHICLE:
           </div>
         </div>
       )}
-    </>
+
+      {/* ═══ ONBOARDING FLOW ═══ */}
+      {showOnboarding && (
+        <div className="onb-overlay">
+          <div className="onb-content">
+            {/* Progress bar */}
+            <div className="onb-progress">
+              {[0,1,2,3,4,5].map(i => (
+                <div key={i} className={`onb-progress-dot${i===onbStep?" active":""}${i<onbStep?" done":""}`}/>
+              ))}
+            </div>
+
+            {/* STEP 0 — Welcome */}
+            {onbStep===0 && (
+              <div className="fade-in">
+                <div className="onb-emoji">👋</div>
+                <div className="onb-title">Welcome to CarGPT, {user?.name?.split(" ")[0]}!</div>
+                <div className="onb-subtitle">The UK's AI-first car marketplace. Let's set up your profile in 60 seconds so we can find your perfect car.</div>
+                <div className="onb-welcome-cards">
+                  {[
+                    {icon:"🤖",bg:"#EEF2FF",title:"AI-Powered Search",desc:"Tell us what you want in plain English"},
+                    {icon:"💰",bg:"#F0FDF4",title:"Smart Price Ratings",desc:"Know instantly if a car is a good deal"},
+                    {icon:"💬",bg:"#FDF4FF",title:"Chat with Dealers",desc:"Message dealers directly, get fast replies"},
+                    {icon:"🔔",bg:"#FEF3C7",title:"Price Drop Alerts",desc:"Get notified when saved cars drop in price"},
+                  ].map((c,i) => (
+                    <div key={i} className="onb-welcome-card">
+                      <div className="onb-welcome-card-icon" style={{background:c.bg}}>{c.icon}</div>
+                      <div className="onb-welcome-card-text">
+                        <div className="onb-welcome-card-title">{c.title}</div>
+                        <div className="onb-welcome-card-desc">{c.desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="onb-footer">
+                  <button className="btn btn-primary btn-block" onClick={()=>setOnbStep(1)} style={{padding:"14px",fontSize:15,fontWeight:700}}>Let's go →</button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 1 — Budget */}
+            {onbStep===1 && (
+              <div className="fade-in">
+                <div className="onb-emoji">💷</div>
+                <div className="onb-title">What's your budget?</div>
+                <div className="onb-subtitle">This helps us show you the most relevant cars first.</div>
+                <div className="onb-options">
+                  {[
+                    {k:"u10",icon:"🪙",label:"Under £10k",desc:"Best value"},
+                    {k:"10-20",icon:"💵",label:"£10k – £20k",desc:"Most popular"},
+                    {k:"20-30",icon:"💰",label:"£20k – £30k",desc:"Premium range"},
+                    {k:"30+",icon:"💎",label:"£30k+",desc:"Luxury & performance"},
+                  ].map(o => (
+                    <div key={o.k} className={`onb-option${onbBudget===o.k?" selected":""}`} onClick={()=>setOnbBudget(o.k)}>
+                      <div className="onb-option-icon">{o.icon}</div>
+                      <div className="onb-option-label">{o.label}</div>
+                      <div className="onb-option-desc">{o.desc}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="onb-footer">
+                  <button className="btn btn-outline" onClick={()=>setOnbStep(0)} style={{flex:1}}>Back</button>
+                  <button className="btn btn-primary" onClick={()=>setOnbStep(2)} style={{flex:2}}>Continue</button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2 — Fuel preference */}
+            {onbStep===2 && (
+              <div className="fade-in">
+                <div className="onb-emoji">⛽</div>
+                <div className="onb-title">Fuel preference?</div>
+                <div className="onb-subtitle">Pick all that apply. We'll prioritise these in your results.</div>
+                <div className="onb-chips">
+                  {[
+                    {k:"Petrol",icon:"⛽",label:"Petrol"},
+                    {k:"Diesel",icon:"🛢️",label:"Diesel"},
+                    {k:"Electric",icon:"⚡",label:"Electric"},
+                    {k:"Hybrid",icon:"🔋",label:"Hybrid"},
+                    {k:"Any",icon:"🔄",label:"No preference"},
+                  ].map(o => (
+                    <div key={o.k} className={`onb-chip${onbFuel.includes(o.k)?" selected":""}`}
+                      onClick={()=>{
+                        if(o.k==="Any") { setOnbFuel(["Any"]); return; }
+                        setOnbFuel(p => {
+                          const without = p.filter(x=>x!=="Any");
+                          return without.includes(o.k) ? without.filter(x=>x!==o.k) : [...without,o.k];
+                        });
+                      }}>
+                      {o.icon} {o.label}
+                    </div>
+                  ))}
+                </div>
+                <div className="onb-footer">
+                  <button className="btn btn-outline" onClick={()=>setOnbStep(1)} style={{flex:1}}>Back</button>
+                  <button className="btn btn-primary" onClick={()=>setOnbStep(3)} style={{flex:2}}>Continue</button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3 — Body type */}
+            {onbStep===3 && (
+              <div className="fade-in">
+                <div className="onb-emoji">🚗</div>
+                <div className="onb-title">What type of car?</div>
+                <div className="onb-subtitle">Pick all that interest you.</div>
+                <div className="onb-options">
+                  {[
+                    {k:"Hatchback",icon:"🚗",label:"Hatchback",desc:"Compact & practical"},
+                    {k:"Saloon",icon:"🏎️",label:"Saloon",desc:"Spacious & comfortable"},
+                    {k:"SUV",icon:"🚙",label:"SUV / Crossover",desc:"Family & adventure"},
+                    {k:"Estate",icon:"🚐",label:"Estate",desc:"Maximum space"},
+                    {k:"Coupe",icon:"🏎️",label:"Coupé / Sport",desc:"Style & performance"},
+                    {k:"Any",icon:"🔄",label:"No preference",desc:"Show me everything"},
+                  ].map(o => (
+                    <div key={o.k} className={`onb-option${onbBody.includes(o.k)?" selected":""}`}
+                      onClick={()=>{
+                        if(o.k==="Any") { setOnbBody(["Any"]); return; }
+                        setOnbBody(p => {
+                          const without = p.filter(x=>x!=="Any");
+                          return without.includes(o.k) ? without.filter(x=>x!==o.k) : [...without,o.k];
+                        });
+                      }}>
+                      <div className="onb-option-icon">{o.icon}</div>
+                      <div className="onb-option-label">{o.label}</div>
+                      <div className="onb-option-desc">{o.desc}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="onb-footer">
+                  <button className="btn btn-outline" onClick={()=>setOnbStep(2)} style={{flex:1}}>Back</button>
+                  <button className="btn btn-primary" onClick={()=>setOnbStep(4)} style={{flex:2}}>Continue</button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 4 — Use case */}
+            {onbStep===4 && (
+              <div className="fade-in">
+                <div className="onb-emoji">🎯</div>
+                <div className="onb-title">What matters most?</div>
+                <div className="onb-subtitle">We'll tailor your experience based on your priorities.</div>
+                <div className="onb-options" style={{gridTemplateColumns:"1fr"}}>
+                  {[
+                    {k:"commute",icon:"🏙️",label:"Daily Commute",desc:"Low running costs, fuel efficiency, reliability"},
+                    {k:"family",icon:"👨‍👩‍👧‍👦",label:"Family Car",desc:"Space, safety, boot capacity, comfort"},
+                    {k:"first",icon:"🔰",label:"First Car",desc:"Low insurance, affordable, easy to drive"},
+                    {k:"performance",icon:"🏎️",label:"Performance",desc:"Power, handling, driving experience"},
+                    {k:"eco",icon:"🌱",label:"Eco / Green",desc:"Low emissions, ULEZ compliant, EV ready"},
+                  ].map(o => (
+                    <div key={o.k} className={`onb-option${onbUse===o.k?" selected":""}`} onClick={()=>setOnbUse(o.k)}
+                      style={{flexDirection:"row",gap:14,padding:"14px 18px",textAlign:"left"}}>
+                      <div className="onb-option-icon">{o.icon}</div>
+                      <div>
+                        <div className="onb-option-label">{o.label}</div>
+                        <div className="onb-option-desc">{o.desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="onb-footer">
+                  <button className="btn btn-outline" onClick={()=>setOnbStep(3)} style={{flex:1}}>Back</button>
+                  <button className="btn btn-primary" onClick={()=>setOnbStep(5)} style={{flex:2}}>Continue</button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 5 — Must-have features */}
+            {onbStep===5 && (
+              <div className="fade-in">
+                <div className="onb-emoji">✨</div>
+                <div className="onb-title">Must-have features?</div>
+                <div className="onb-subtitle">Select any features you can't live without. Optional!</div>
+                <div className="onb-feature-grid">
+                  {[
+                    {k:"cruise",icon:"🚀",label:"Cruise Control"},
+                    {k:"carplay",icon:"📱",label:"Apple CarPlay"},
+                    {k:"heated",icon:"🔥",label:"Heated Seats"},
+                    {k:"camera",icon:"📷",label:"Reverse Cam"},
+                    {k:"nav",icon:"🗺️",label:"Sat Nav"},
+                    {k:"parking",icon:"🅿️",label:"Park Sensors"},
+                    {k:"sunroof",icon:"☀️",label:"Sunroof"},
+                    {k:"leather",icon:"💺",label:"Leather"},
+                    {k:"keyless",icon:"🔑",label:"Keyless Entry"},
+                  ].map(o => (
+                    <div key={o.k} className={`onb-feature${onbFeatures.includes(o.k)?" selected":""}`}
+                      onClick={()=>setOnbFeatures(p=>p.includes(o.k)?p.filter(x=>x!==o.k):[...p,o.k])}>
+                      <div className="onb-feature-icon">{o.icon}</div>
+                      <div className="onb-feature-label">{o.label}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="onb-footer">
+                  <button className="btn btn-outline" onClick={()=>setOnbStep(4)} style={{flex:1}}>Back</button>
+                  <button className="btn btn-primary" onClick={()=>{
+                    // Apply preferences — set filters based on onboarding
+                    if(onbBudget==="u10") setFPrice("u15");
+                    else if(onbBudget==="10-20") setFPrice("u20");
+                    else if(onbBudget==="20-30") setFPrice("u30");
+                    else if(onbBudget==="30+") setFPrice("25+");
+                    if(onbFuel.length===1 && onbFuel[0]!=="Any") setFFuel(onbFuel[0]);
+                    if(onbBody.length===1 && onbBody[0]!=="Any") setFBody(onbBody[0]);
+                    if(onbUse==="first"){ setFInsurance("low"); setFSort("insurance"); }
+                    if(onbUse==="eco"){ setFUlez("yes"); }
+                    if(onbUse==="performance"){ setFSort("match"); }
+                    setShowOnboarding(false);
+                    setPage("search");
+                  }} style={{flex:2,padding:"14px",fontSize:15,fontWeight:700}}>
+                    🚗 Find my perfect car
+                  </button>
+                </div>
+                <button onClick={()=>{setShowOnboarding(false);}} style={{
+                  background:"none",border:"none",cursor:"pointer",
+                  fontSize:13,color:"var(--text-tertiary)",padding:"12px 0",textAlign:"center",width:"100%"
+                }}>Skip for now</button>
+              </div>
+            )}
+
+            {/* Skip link on all steps except last */}
+            {onbStep < 5 && (
+              <button onClick={()=>setShowOnboarding(false)} style={{
+                background:"none",border:"none",cursor:"pointer",
+                fontSize:13,color:"var(--text-tertiary)",padding:"12px 0",textAlign:"center",
+                marginTop:onbStep===0?0:"auto"
+              }}>Skip setup</button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
